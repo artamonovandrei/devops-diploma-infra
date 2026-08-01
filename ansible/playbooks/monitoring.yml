@@ -2,6 +2,8 @@
 - name: Deploy monitoring stack on k3s
   hosts: k3s
   become: true
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
   tasks:
     - name: Add Prometheus Helm repo
@@ -31,7 +33,7 @@
         --namespace monitoring
         --create-namespace
         -f /tmp/kube-prometheus-values.yaml
-        --wait --timeout 10m
+        --wait --timeout 15m
       register: prom_install
       changed_when: "'has been upgraded' in prom_install.stdout or 'has been installed' in prom_install.stdout"
 
@@ -45,13 +47,17 @@
         helm upgrade --install loki grafana/loki-stack
         --namespace monitoring
         -f /tmp/loki-values.yaml
-        --wait --timeout 10m
+        --wait --timeout 15m
       register: loki_install
+      failed_when: loki_install.rc != 0 and 'cannot re-use a name' not in loki_install.stderr
       changed_when: "'has been upgraded' in loki_install.stdout or 'has been installed' in loki_install.stdout"
+
+    - name: Apply Grafana dashboard ConfigMap
+      command: kubectl apply -f /tmp/grafana-dashboard.yaml
+      ignore_errors: true
 
     - name: Display Grafana access info
       debug:
         msg: |
-          Grafana: kubectl port-forward -n monitoring svc/kube-prometheus-grafana 3000:80
-          Default user: admin
-          Get password: kubectl get secret -n monitoring kube-prometheus-grafana -o jsonpath='{.data.admin-password}' | base64 -d
+          Grafana: kubectl -n monitoring port-forward svc/kube-prometheus-grafana 3000:80
+          Default user: admin / devops-diploma

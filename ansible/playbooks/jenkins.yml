@@ -3,8 +3,7 @@
   hosts: jenkins
   become: true
   vars:
-    jenkins_version: "2.479.1"
-    java_package: openjdk-17-jdk
+    java_package: openjdk-21-jre
 
   tasks:
     - name: Update apt cache
@@ -16,7 +15,9 @@
       apt:
         name:
           - "{{ java_package }}"
+          - fontconfig
           - curl
+          - wget
           - gnupg
           - apt-transport-https
           - ca-certificates
@@ -98,20 +99,29 @@
 
     - name: Install Jenkins
       block:
-        - name: Add Jenkins GPG key
-          apt_key:
-            url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
-            state: present
+        - name: Ensure apt keyrings directory exists
+          file:
+            path: /etc/apt/keyrings
+            state: directory
+            mode: "0755"
 
-        - name: Add Jenkins repository
-          apt_repository:
-            repo: "deb https://pkg.jenkins.io/debian-stable binary/"
-            state: present
+        - name: Download Jenkins 2026 GPG key
+          get_url:
+            url: https://pkg.jenkins.io/debian-stable/jenkins.io-2026.key
+            dest: /etc/apt/keyrings/jenkins-keyring.asc
+            mode: "0644"
+
+        - name: Add Jenkins apt source list
+          copy:
+            dest: /etc/apt/sources.list.d/jenkins.list
+            content: "deb [signed-by=/etc/apt/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/\n"
+            mode: "0644"
 
         - name: Install Jenkins package
           apt:
             name: jenkins
             state: present
+            update_cache: true
 
         - name: Enable and start Jenkins
           systemd:

@@ -6,7 +6,7 @@ metadata:
   labels:
     app: user-service
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: user-service
@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: user-service
-          image: YOUR_DOCKERHUB_USER/user-service:latest
+          image: artamonovandrei/user-service:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8001

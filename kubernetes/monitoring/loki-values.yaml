@@ -1,25 +1,32 @@
 loki:
   enabled: true
   persistence:
-    enabled: true
-    size: 5Gi
+    enabled: false
+  config:
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 48h
   resources:
     requests:
-      memory: 128Mi
-      cpu: 100m
+      memory: 64Mi
+      cpu: 50m
     limits:
-      memory: 256Mi
+      memory: 192Mi
       cpu: 200m
 
 promtail:
   enabled: true
   resources:
     requests:
-      memory: 64Mi
-      cpu: 50m
+      memory: 32Mi
+      cpu: 20m
     limits:
-      memory: 128Mi
+      memory: 64Mi
       cpu: 100m
 
 grafana:
   enabled: false
+
+prometheus:
+  enabled: false
+  isDefault: false
