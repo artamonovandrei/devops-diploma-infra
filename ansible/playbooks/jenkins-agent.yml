@@ -12,6 +12,14 @@
         name: openjdk-17-jdk
         state: present
 
+    - name: Ensure Python 3.10 present on agent
+      apt:
+        name:
+          - python3.10
+          - python3.10-venv
+          - python3-pip
+        state: present
+
     - name: Create jenkins agent directory
       file:
         path: /opt/jenkins-agent

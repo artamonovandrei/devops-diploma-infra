@@ -4,3 +4,6 @@
 
 - name: Configure k3s cluster
   import_playbook: k3s.yml
+
+- name: Install Python 3.10 and Node.js 22 on all servers
+  import_playbook: runtimes.yml

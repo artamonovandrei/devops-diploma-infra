@@ -23,18 +23,21 @@ ssh -i $env:USERPROFILE\.ssh\devops-diploma ubuntu@$jenkinsIp "sudo cat /var/lib
 |----|-----|------|
 | `dockerhub-credentials` | Username/Password | Login Docker Hub + Access Token |
 | `github-token` | Secret text | GitHub PAT (repo read) |
-| `ses-smtp-user` | Secret text | AWS SES SMTP username |
-| `ses-smtp-pass` | Secret text | AWS SES SMTP password |
+| `ses-smtp` | Username/Password | AWS SES SMTP (IAM access key + derived SMTP password) |
 
 ## 4. E-mail (AWS SES)
+
+Już skonfigurowane na serwerze Jenkins (SMTP SES, recipient `artamonovandrei88@gmail.com`).
 
 Manage Jenkins → System → Extended E-mail Notification:
 
 - SMTP server: `email-smtp.eu-central-1.amazonaws.com`
 - Port: `587`
 - Use TLS: yes
-- Credentials: SES SMTP
-- Default Recipients: Twój zweryfikowany e-mail SES
+- Credentials: `ses-smtp`
+- Default Recipients: `artamonovandrei88@gmail.com`
+
+Lokalne sekrety (nie commitować): `devops-diploma-infra/.secrets/ses-smtp.env`
 
 ## 5. Multibranch Pipeline
 

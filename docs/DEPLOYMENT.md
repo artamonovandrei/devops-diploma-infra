@@ -61,9 +61,12 @@ cp inventory/hosts.example inventory/hosts
 # Uzupełnij IP z terraform output
 
 ansible-playbook -i inventory/hosts playbooks/site.yml
+# site.yml instaluje też Python 3.10 + Node.js 22 (playbooks/runtimes.yml)
 ansible-playbook -i inventory/hosts playbooks/jenkins-agent.yml
 ansible-playbook -i inventory/hosts playbooks/monitoring.yml
 ```
+
+Runtimes na serwerach: **Python 3.10** + **Node.js 22** (Jenkins i k3s). Obrazy aplikacji: `python:3.10-slim`.
 
 ## Krok 5: Konfiguracja Jenkins
 

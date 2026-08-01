@@ -15,16 +15,12 @@ credentials:
               username: "${DOCKERHUB_USER}"
               password: "${DOCKERHUB_TOKEN}"
               description: "Docker Hub credentials"
-          - string:
+          - usernamePassword:
               scope: GLOBAL
-              id: "ses-smtp-user"
-              secret: "${SES_SMTP_USER}"
-              description: "AWS SES SMTP username"
-          - string:
-              scope: GLOBAL
-              id: "ses-smtp-pass"
-              secret: "${SES_SMTP_PASS}"
-              description: "AWS SES SMTP password"
+              id: "ses-smtp"
+              username: "${SES_SMTP_USER}"
+              password: "${SES_SMTP_PASS}"
+              description: "AWS SES SMTP credentials"
 
 unclassified:
   location:
@@ -35,9 +31,11 @@ unclassified:
     useSsl: false
     useTls: true
     charset: "UTF-8"
-    defaultSuffix: "@devops-diploma.local"
+    authentication: "ses-smtp"
+    replyToAddress: "artamonovandrei88@gmail.com"
   email-ext:
-    defaultRecipients: "your-email@example.com"
+    defaultRecipients: "artamonovandrei88@gmail.com"
+    defaultReplyTo: "artamonovandrei88@gmail.com"
     defaultSubject: "[DevOps Diploma] $PROJECT_NAME - Build #${BUILD_NUMBER} - ${BUILD_STATUS}"
     defaultBody: |
       Build: ${BUILD_URL}

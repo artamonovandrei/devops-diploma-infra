@@ -17,6 +17,9 @@
           - curl
           - apt-transport-https
           - ca-certificates
+          - python3.10
+          - python3.10-venv
+          - python3-pip
         state: present
 
     - name: Install k3s
