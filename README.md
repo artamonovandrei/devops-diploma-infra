@@ -92,3 +92,13 @@ scripts/       # setup-windows, deploy, e2e-checklist
 - [Architektura](docs/ARCHITECTURE.md)
 - [Wdrożenie od zera](docs/DEPLOYMENT.md)
 - [Scenariusz obrony](docs/DEMO.md)
+- [Konfiguracja Jenkins](docs/JENKINS.md)
+
+## Zanim uruchomisz Terraform
+
+```powershell
+aws configure   # wymagane — Access Key z AWS Console
+.\scripts\generate-tfvars.ps1
+gh auth login
+.\scripts\create-github-repos.ps1
+```

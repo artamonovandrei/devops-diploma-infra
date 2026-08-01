@@ -5,13 +5,19 @@ Instrukcja wdrożenia całego projektu w kilku krokach.
 ## Wymagania wstępne
 
 - Konto AWS z aktywnym kredytem
-- AWS CLI: `aws configure`
-- Terraform >= 1.5
-- Ansible >= 2.14
-- Klucz SSH: `ssh-keygen -t rsa -b 4096 -f ~/.ssh/devops-diploma`
-- Docker Desktop (testy lokalne)
+- AWS CLI skonfigurowany:
+  ```powershell
+  aws configure
+  # Access Key ID / Secret / region: eu-central-1
+  aws sts get-caller-identity
+  ```
+- Terraform >= 1.5 (`winget install Hashicorp.Terraform`)
+- Ansible >= 2.14 (najłatwiej przez WSL Ubuntu: `sudo apt install ansible`)
+- Klucz SSH: `.\scripts\setup-windows.ps1` lub `.\scripts\generate-tfvars.ps1`
+- Docker Desktop uruchomiony
 - Konto Docker Hub
 - E-mail zweryfikowany w AWS SES
+- GitHub: `gh auth login`
 
 ## Krok 1: Przygotowanie AWS SES
 
