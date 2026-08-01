@@ -1,0 +1,118 @@
+pipeline {
+    agent {
+        label 'k3s-agent'
+    }
+
+    environment {
+        K8S_NAMESPACE = 'microservices'
+        K8S_MANIFESTS = '/opt/devops-diploma-infra/kubernetes/apps'
+    }
+
+    options {
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        timeout(time: 40, unit: 'MINUTES')
+    }
+
+    triggers {
+        pollSCM('H/2 * * * *')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build and Test') {
+            steps {
+                sh '''
+                    set -e
+                    docker compose up -d --build
+                    sleep 20
+                    pip3 install -r requirements.txt
+                    pytest tests/ -v
+                '''
+            }
+        }
+
+        stage('Build and Push Images') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        set -e
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker build -t ${DOCKER_USER}/user-service:${BUILD_NUMBER} -t ${DOCKER_USER}/user-service:latest ./user-service
+                        docker build -t ${DOCKER_USER}/order-service:${BUILD_NUMBER} -t ${DOCKER_USER}/order-service:latest ./order-service
+                        docker push ${DOCKER_USER}/user-service:${BUILD_NUMBER}
+                        docker push ${DOCKER_USER}/user-service:latest
+                        docker push ${DOCKER_USER}/order-service:${BUILD_NUMBER}
+                        docker push ${DOCKER_USER}/order-service:latest
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to k3s') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'master'
+                }
+            }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        set -e
+                        kubectl apply -f ${K8S_MANIFESTS}/
+                        kubectl set image deployment/user-service user-service=${DOCKER_USER}/user-service:${BUILD_NUMBER} -n ${K8S_NAMESPACE}
+                        kubectl set image deployment/order-service order-service=${DOCKER_USER}/order-service:${BUILD_NUMBER} -n ${K8S_NAMESPACE}
+                        kubectl rollout status deployment/user-service -n ${K8S_NAMESPACE} --timeout=180s
+                        kubectl rollout status deployment/order-service -n ${K8S_NAMESPACE} --timeout=180s
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Deployment') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'master'
+                }
+            }
+            steps {
+                sh '''
+                    set -e
+                    kubectl get pods -n microservices -o wide
+                    kubectl get svc -n microservices
+                    curl -sf http://user-service.microservices.svc.cluster.local:8001/health
+                    curl -sf http://order-service.microservices.svc.cluster.local:8002/health
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker compose down || true'
+            emailext(
+                subject: "[CD] ${env.JOB_NAME} #${env.BUILD_NUMBER} - ${currentBuild.currentResult}",
+                body: """CD pipeline zakonczony.
+
+Job: ${env.JOB_NAME}
+Build: #${env.BUILD_NUMBER}
+Branch: ${env.BRANCH_NAME}
+Status: ${currentBuild.currentResult}
+Deploy: ${env.BRANCH_NAME == 'main' || env.BRANCH_NAME == 'master' ? 'WDROZONE na k3s' : 'POMINIETE (nie main)'}
+URL: ${env.BUILD_URL}
+
+Powiadomienie: AWS SES
+""",
+                to: '${DEFAULT_RECIPIENTS}',
+                attachLog: true
+            )
+        }
+    }
+}

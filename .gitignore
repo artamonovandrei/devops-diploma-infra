@@ -1,0 +1,13 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+terraform.tfvars
+*.pem
+*.key
+kubeconfig/
+ansible/inventory/hosts
+.DS_Store
+__pycache__/
+*.pyc
+.venv/

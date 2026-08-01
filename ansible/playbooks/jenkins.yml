@@ -1,0 +1,159 @@
+---
+- name: Configure Jenkins server
+  hosts: jenkins
+  become: true
+  vars:
+    jenkins_version: "2.479.1"
+    java_package: openjdk-17-jdk
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install base packages
+      apt:
+        name:
+          - "{{ java_package }}"
+          - curl
+          - gnupg
+          - apt-transport-https
+          - ca-certificates
+          - software-properties-common
+          - python3-pip
+          - git
+          - unzip
+        state: present
+
+    - name: Install Docker
+      block:
+        - name: Add Docker GPG key
+          apt_key:
+            url: https://download.docker.com/linux/ubuntu/gpg
+            state: present
+
+        - name: Add Docker repository
+          apt_repository:
+            repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu jammy stable"
+            state: present
+
+        - name: Install Docker packages
+          apt:
+            name:
+              - docker-ce
+              - docker-ce-cli
+              - containerd.io
+            state: present
+
+        - name: Add ubuntu user to docker group
+          user:
+            name: ubuntu
+            groups: docker
+            append: true
+
+        - name: Enable and start Docker
+          systemd:
+            name: docker
+            state: started
+            enabled: true
+
+    - name: Install Terraform
+      block:
+        - name: Download Terraform
+          get_url:
+            url: "https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip"
+            dest: /tmp/terraform.zip
+
+        - name: Unzip Terraform
+          unarchive:
+            src: /tmp/terraform.zip
+            dest: /usr/local/bin
+            remote_src: true
+            mode: "0755"
+
+    - name: Install kubectl
+      get_url:
+        url: "https://dl.k8s.io/release/v1.31.2/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: "0755"
+
+    - name: Install AWS CLI v2
+      block:
+        - name: Download AWS CLI
+          get_url:
+            url: "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
+            dest: /tmp/awscliv2.zip
+
+        - name: Unzip AWS CLI
+          unarchive:
+            src: /tmp/awscliv2.zip
+            dest: /tmp
+            remote_src: true
+
+        - name: Install AWS CLI
+          command: /tmp/aws/install
+          args:
+            creates: /usr/local/bin/aws
+
+    - name: Install Jenkins
+      block:
+        - name: Add Jenkins GPG key
+          apt_key:
+            url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+            state: present
+
+        - name: Add Jenkins repository
+          apt_repository:
+            repo: "deb https://pkg.jenkins.io/debian-stable binary/"
+            state: present
+
+        - name: Install Jenkins package
+          apt:
+            name: jenkins
+            state: present
+
+        - name: Enable and start Jenkins
+          systemd:
+            name: jenkins
+            state: started
+            enabled: true
+
+    - name: Configure UFW firewall
+      block:
+        - name: Allow SSH
+          ufw:
+            rule: allow
+            port: "22"
+            proto: tcp
+
+        - name: Allow Jenkins UI
+          ufw:
+            rule: allow
+            port: "8080"
+            proto: tcp
+
+        - name: Allow Jenkins agent JNLP
+          ufw:
+            rule: allow
+            port: "50000"
+            proto: tcp
+
+        - name: Enable UFW
+          ufw:
+            state: enabled
+            policy: deny
+            direction: incoming
+
+    - name: Wait for Jenkins to start
+      uri:
+        url: "http://localhost:8080/login"
+        status_code: 200
+      register: jenkins_ready
+      until: jenkins_ready.status == 200
+      retries: 30
+      delay: 10
+
+    - name: Display Jenkins initial admin password location
+      debug:
+        msg: "Jenkins initial password: run 'sudo cat /var/lib/jenkins/secrets/initialAdminPassword' on Jenkins server"

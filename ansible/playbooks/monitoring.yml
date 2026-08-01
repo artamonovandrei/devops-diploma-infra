@@ -1,0 +1,57 @@
+---
+- name: Deploy monitoring stack on k3s
+  hosts: k3s
+  become: true
+
+  tasks:
+    - name: Add Prometheus Helm repo
+      command: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+      register: helm_prom
+      changed_when: "'has been added' in helm_prom.stdout"
+      failed_when: helm_prom.rc != 0 and 'already exists' not in helm_prom.stderr
+
+    - name: Add Grafana Helm repo
+      command: helm repo add grafana https://grafana.github.io/helm-charts
+      register: helm_graf
+      changed_when: "'has been added' in helm_graf.stdout"
+      failed_when: helm_graf.rc != 0 and 'already exists' not in helm_graf.stderr
+
+    - name: Update Helm repos
+      command: helm repo update
+      changed_when: true
+
+    - name: Copy kube-prometheus-stack values
+      copy:
+        src: "{{ playbook_dir }}/../../kubernetes/monitoring/kube-prometheus-values.yaml"
+        dest: /tmp/kube-prometheus-values.yaml
+
+    - name: Install kube-prometheus-stack
+      command: >
+        helm upgrade --install kube-prometheus prometheus-community/kube-prometheus-stack
+        --namespace monitoring
+        --create-namespace
+        -f /tmp/kube-prometheus-values.yaml
+        --wait --timeout 10m
+      register: prom_install
+      changed_when: "'has been upgraded' in prom_install.stdout or 'has been installed' in prom_install.stdout"
+
+    - name: Copy Loki values
+      copy:
+        src: "{{ playbook_dir }}/../../kubernetes/monitoring/loki-values.yaml"
+        dest: /tmp/loki-values.yaml
+
+    - name: Install Loki stack
+      command: >
+        helm upgrade --install loki grafana/loki-stack
+        --namespace monitoring
+        -f /tmp/loki-values.yaml
+        --wait --timeout 10m
+      register: loki_install
+      changed_when: "'has been upgraded' in loki_install.stdout or 'has been installed' in loki_install.stdout"
+
+    - name: Display Grafana access info
+      debug:
+        msg: |
+          Grafana: kubectl port-forward -n monitoring svc/kube-prometheus-grafana 3000:80
+          Default user: admin
+          Get password: kubectl get secret -n monitoring kube-prometheus-grafana -o jsonpath='{.data.admin-password}' | base64 -d

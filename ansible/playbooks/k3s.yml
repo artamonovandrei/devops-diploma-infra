@@ -1,0 +1,111 @@
+---
+- name: Configure k3s Kubernetes cluster
+  hosts: k3s
+  become: true
+  vars:
+    k3s_version: "v1.31.2+k3s1"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install base packages
+      apt:
+        name:
+          - curl
+          - apt-transport-https
+          - ca-certificates
+        state: present
+
+    - name: Install k3s
+      shell: |
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} sh -s - \
+          --write-kubeconfig-mode 644 \
+          --disable traefik
+      args:
+        creates: /usr/local/bin/k3s
+
+    - name: Wait for k3s to be ready
+      command: kubectl get nodes
+      register: k3s_nodes
+      until: k3s_nodes.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    - name: Install Helm
+      block:
+        - name: Download Helm install script
+          get_url:
+            url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+            dest: /tmp/get-helm-3
+            mode: "0755"
+
+        - name: Run Helm install
+          command: /tmp/get-helm-3
+          args:
+            creates: /usr/local/bin/helm
+
+    - name: Create microservices namespace
+      command: kubectl create namespace microservices
+      register: ns_result
+      failed_when: ns_result.rc != 0 and 'AlreadyExists' not in ns_result.stderr
+      changed_when: "'created' in ns_result.stdout"
+
+    - name: Create monitoring namespace
+      command: kubectl create namespace monitoring
+      register: mon_ns
+      failed_when: mon_ns.rc != 0 and 'AlreadyExists' not in mon_ns.stderr
+      changed_when: "'created' in mon_ns.stdout"
+
+    - name: Install Traefik ingress controller
+      shell: |
+        kubectl apply -f https://raw.githubusercontent.com/traefik/traefik/v3.2/docs/content/reference/dynamic-configuration/kubernetes-crd-definition-v1.yml
+        kubectl apply -f https://raw.githubusercontent.com/traefik/traefik/v3.2/docs/content/reference/dynamic-configuration/kubernetes-crd-rbac.yml
+      args:
+        creates: /var/lib/k3s-configured-traefik
+
+    - name: Mark Traefik as configured
+      file:
+        path: /var/lib/k3s-configured-traefik
+        state: touch
+
+    - name: Configure UFW firewall
+      block:
+        - name: Allow SSH
+          ufw:
+            rule: allow
+            port: "22"
+            proto: tcp
+
+        - name: Allow HTTP
+          ufw:
+            rule: allow
+            port: "80"
+            proto: tcp
+
+        - name: Allow HTTPS
+          ufw:
+            rule: allow
+            port: "443"
+            proto: tcp
+
+        - name: Allow Kubernetes API
+          ufw:
+            rule: allow
+            port: "6443"
+            proto: tcp
+
+        - name: Enable UFW
+          ufw:
+            state: enabled
+            policy: deny
+            direction: incoming
+
+    - name: Fetch kubeconfig for Jenkins
+      fetch:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: "{{ playbook_dir }}/../kubeconfig/k3s.yaml"
+        flat: true

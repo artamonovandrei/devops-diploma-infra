@@ -1,0 +1,87 @@
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        timeout(time: 30, unit: 'MINUTES')
+    }
+
+    triggers {
+        pollSCM('H/2 * * * *')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Unit Tests') {
+            steps {
+                sh '''
+                    set -e
+                    docker compose up -d --build
+                    sleep 20
+                    pip3 install -r requirements.txt
+                    pytest tests/ -v --junitxml=test-results.xml
+                '''
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'test-results.xml'
+                }
+            }
+        }
+
+        stage('Build Images') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        set -e
+                        docker build -t ${DOCKER_USER}/user-service:${BUILD_NUMBER} -t ${DOCKER_USER}/user-service:latest ./user-service
+                        docker build -t ${DOCKER_USER}/order-service:${BUILD_NUMBER} -t ${DOCKER_USER}/order-service:latest ./order-service
+                    '''
+                }
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        set -e
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push ${DOCKER_USER}/user-service:${BUILD_NUMBER}
+                        docker push ${DOCKER_USER}/user-service:latest
+                        docker push ${DOCKER_USER}/order-service:${BUILD_NUMBER}
+                        docker push ${DOCKER_USER}/order-service:latest
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker compose down || true'
+            emailext(
+                subject: "[CI] ${env.JOB_NAME} #${env.BUILD_NUMBER} - ${currentBuild.currentResult}",
+                body: """CI pipeline zakonczony.
+
+Job: ${env.JOB_NAME}
+Build: #${env.BUILD_NUMBER}
+Branch: ${env.BRANCH_NAME}
+Status: ${currentBuild.currentResult}
+URL: ${env.BUILD_URL}
+
+Etapy: Checkout -> Unit Tests -> Build -> Push Docker Hub
+Powiadomienie: AWS SES
+""",
+                to: '${DEFAULT_RECIPIENTS}',
+                attachLog: true
+            )
+        }
+    }
+}

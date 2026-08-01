@@ -1,0 +1,66 @@
+# Jenkins Configuration as Code — przykładowa konfiguracja
+
+jenkins:
+  systemMessage: "DevOps Diploma Project - Jenkins CI/CD"
+  numExecutors: 2
+  mode: NORMAL
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - usernamePassword:
+              scope: GLOBAL
+              id: "dockerhub-credentials"
+              username: "${DOCKERHUB_USER}"
+              password: "${DOCKERHUB_TOKEN}"
+              description: "Docker Hub credentials"
+          - string:
+              scope: GLOBAL
+              id: "ses-smtp-user"
+              secret: "${SES_SMTP_USER}"
+              description: "AWS SES SMTP username"
+          - string:
+              scope: GLOBAL
+              id: "ses-smtp-pass"
+              secret: "${SES_SMTP_PASS}"
+              description: "AWS SES SMTP password"
+
+unclassified:
+  location:
+    url: "http://JENKINS_PUBLIC_IP:8080/"
+  mailer:
+    smtpHost: "email-smtp.eu-central-1.amazonaws.com"
+    smtpPort: "587"
+    useSsl: false
+    useTls: true
+    charset: "UTF-8"
+    defaultSuffix: "@devops-diploma.local"
+  email-ext:
+    defaultRecipients: "your-email@example.com"
+    defaultSubject: "[DevOps Diploma] $PROJECT_NAME - Build #${BUILD_NUMBER} - ${BUILD_STATUS}"
+    defaultBody: |
+      Build: ${BUILD_URL}
+      Status: ${BUILD_STATUS}
+      Branch: ${GIT_BRANCH}
+
+jobs:
+  - script: >
+      multibranchPipelineJob('microservices-ci') {
+        branchSources {
+          github {
+            id('microservices-app')
+            scanCredentialsId('github-token')
+            repoOwner('YOUR_GITHUB_USER')
+            repository('python-microservices-app')
+          }
+        }
+        factory {
+          workflowBranchProjectFactory {
+            scriptPath('Jenkinsfile')
+          }
+        }
+        triggers {
+          periodic(120)
+        }
+      }

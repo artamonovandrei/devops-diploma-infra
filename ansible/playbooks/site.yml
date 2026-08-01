@@ -1,0 +1,6 @@
+---
+- name: Bootstrap all servers
+  import_playbook: jenkins.yml
+
+- name: Configure k3s cluster
+  import_playbook: k3s.yml
