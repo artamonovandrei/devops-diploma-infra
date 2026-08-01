@@ -11,3 +11,4 @@ ansible/inventory/hosts
 __pycache__/
 *.pyc
 .venv/
+*.bak
