@@ -1,77 +1,38 @@
-# NEXT STEPS — co musisz zrobić ręcznie
+# NEXT STEPS — aktualny status
 
-Kod projektu jest gotowy lokalnie. Aby dokończyć wdrożenie na AWS:
+Ostatnia aktualizacja: 2026-08-01
 
-## 1. Skonfiguruj AWS credentials (blokuje Terraform)
+## Zrobione
 
-```powershell
-aws configure
-# AWS Access Key ID: z konsoli AWS → IAM → Security credentials
-# AWS Secret Access Key: ...
-# Default region: eu-central-1
-# Default output: json
+- [x] AWS credentials + Terraform (VPC, 2× EC2, S3 state)
+- [x] Ansible: Jenkins, k3s, UFW, Python 3.10 + Node 22
+- [x] Aplikacja na k3s (NodePorts 30001 / 30002)
+- [x] Monitoring lite: Prometheus, Grafana, Loki, Alertmanager
+- [x] Jenkins Multibranch CI/CD → Docker Hub → deploy k3s
+- [x] AWS SES: zweryfikowany e-mail + SMTP credentials
+- [x] Powiadomienia e-mail z pipeline (`SES_EMAIL_SENT_OK`)
+- [x] Push na GitHub (app + infra)
 
-aws sts get-caller-identity   # musi zwrócić Twoje Account ID
-```
+## Do sprawdzenia ręcznie (2–5 min)
 
-## 2. Zaloguj się do GitHub
+1. Skrzynka **artamonovandrei88@gmail.com** — mail `[DevOps Diploma] ...` (także folder Spam)
+2. Jenkins UI: http://63.180.87.102:8080 — ostatni build `main` = SUCCESS
+3. Aplikacja:
+   - http://18.197.236.46:30001/health
+   - http://18.197.236.46:30002/health
+4. Grafana: http://18.197.236.46:30300 — `admin` / `devops-diploma`
 
-```powershell
-gh auth login
-cd c:\Users\artam\Documents\DevOps\devops-diploma-infra
-.\scripts\create-github-repos.ps1
-```
+## Opcjonalne (więcej punktów)
 
-## 3. Wdróż infrastrukturę
+- [ ] Domena + SSL
+- [ ] Jenkins agent na k3s
+- [ ] Jenkins Configuration as Code (pełne wdrożenie)
+- [ ] Szerszy scope GitHub PAT (statuses) — teraz tylko warning 403
 
-```powershell
-cd c:\Users\artam\Documents\DevOps\devops-diploma-infra
+## Koszty
 
-# tfvars już wygenerowany (scripts\generate-tfvars.ps1)
-# Przywróć S3 backend w terraform/environments/dev/main.tf jeśli był zmieniony na local
+Gdy nie pracujesz: `terraform destroy` w `terraform/environments/dev` albo Stop EC2 w konsoli AWS.
 
-cd terraform\bootstrap
-terraform init
-terraform apply -auto-approve
+## Sekrety (nie commitować)
 
-cd ..\environments\dev
-# Upewnij się, że backend to S3 (patrz main.tf)
-terraform init
-terraform apply -auto-approve
-terraform output
-```
-
-## 4. Ansible (przez WSL Ubuntu)
-
-```bash
-sudo apt update && sudo apt install -y ansible
-cd /mnt/c/Users/artam/Documents/DevOps/devops-diploma-infra/ansible
-cp inventory/hosts.example inventory/hosts
-# wstaw IP z terraform output
-ansible-playbook playbooks/site.yml
-ansible-playbook playbooks/monitoring.yml
-ansible-playbook playbooks/jenkins-agent.yml
-```
-
-## 5. Jenkins + SES
-
-Patrz [docs/JENKINS.md](JENKINS.md) i [docs/DEPLOYMENT.md](DEPLOYMENT.md).
-
-## 6. SES — zweryfikuj e-mail
-
-```powershell
-aws ses verify-email-identity --email-address TWOJ@EMAIL.com --region eu-central-1
-```
-
-## Status lokalny (już zrobione)
-
-- [x] Aplikacja microserwisów + Docker Compose (lokalnie działa)
-- [x] Repo `devops-diploma-infra` z Terraform/Ansible/K8s/Jenkins/docs
-- [x] Klucz SSH `~/.ssh/devops-diploma`
-- [x] `terraform.tfvars` wygenerowany
-- [x] Terraform / AWS CLI / gh zainstalowane
-- [ ] AWS credentials (`aws configure`)
-- [ ] `terraform apply` na AWS
-- [ ] Ansible bootstrap na EC2
-- [ ] Jenkins pipeline + Docker Hub + SES
-- [ ] Push na GitHub
+- `devops-diploma-infra/.secrets/ses-smtp.env` — lokalne SMTP SES

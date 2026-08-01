@@ -17,8 +17,8 @@ spec:
     spec:
       containers:
         - name: user-service
-          image: artamonovandrei/user-service:latest
-          imagePullPolicy: IfNotPresent
+          image: andriiartamonov/user-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8001
           livenessProbe:
@@ -49,7 +49,9 @@ metadata:
 spec:
   selector:
     app: user-service
+  type: NodePort
   ports:
-    - port: 8001
+    - name: http
+      port: 8001
       targetPort: 8001
-  type: ClusterIP
+      nodePort: 30001

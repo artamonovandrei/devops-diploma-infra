@@ -25,8 +25,8 @@ spec:
     spec:
       containers:
         - name: order-service
-          image: artamonovandrei/order-service:latest
-          imagePullPolicy: IfNotPresent
+          image: andriiartamonov/order-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8002
           envFrom:
@@ -60,7 +60,9 @@ metadata:
 spec:
   selector:
     app: order-service
+  type: NodePort
   ports:
-    - port: 8002
+    - name: http
+      port: 8002
       targetPort: 8002
-  type: ClusterIP
+      nodePort: 30002
