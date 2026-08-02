@@ -41,7 +41,8 @@ ansible-playbook -i inventory/hosts playbooks/site.yml
 ansible-playbook -i inventory/hosts playbooks/monitoring.yml
 ```
 
-Runtimes na hostach: **Python 3.12** + **Node.js 22**. Obrazy gry: `python:3.12-slim` i `node:22-alpine` (build) / Caddy.
+Runtimes na hostach: **Python 3.12** (deadsnakes, obok systemowego 3.10) + **Node.js 22**.  
+Obrazy gry: `python:3.12-slim` i `node:22-alpine` (build) / Caddy.
 
 ## Jenkins
 
