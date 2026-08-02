@@ -46,6 +46,10 @@ pipeline {
                     fi
                     for f in kubernetes/apps/*.yaml kubernetes/monitoring/*.yaml; do
                         [ -f "$f" ] || continue
+                        # Helm values — nie jest manifestem K8s
+                        case "$f" in
+                          *kube-prometheus-values.yaml|*values.yaml) echo "skip helm values: $f"; continue ;;
+                        esac
                         echo "validate: $f"
                         kubectl apply --dry-run=client -f "$f"
                     done
