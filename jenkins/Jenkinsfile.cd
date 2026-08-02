@@ -1,31 +1,36 @@
-// Przykład CD — produkcyjny pipeline jest w repo aplikacji:
-// https://github.com/artamonovandrei/Counter-Strike/blob/main/Jenkinsfile
+// CD przykład — apply manifestów WebStrike na k3s (gdy kubeconfig jest na Jenkinsie).
+// W Multibranch: Script Path = jenkins/Jenkinsfile.cd
+// Produkcyjny deploy aplikacji: Counter-Strike/Jenkinsfile (gałąź main).
 
 pipeline {
     agent any
+
     environment {
         K8S_NAMESPACE = 'webstrike'
         KUBECONFIG    = '/var/lib/jenkins/.kube/config'
     }
+
     options {
         timestamps()
-        timeout(time: 30, unit: 'MINUTES')
+        timeout(time: 20, unit: 'MINUTES')
     }
+
     stages {
-        stage('Deploy') {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Deploy manifests') {
             when { branch 'main' }
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh '''
-                        set -e
-                        kubectl apply -f /opt/devops-diploma-infra/kubernetes/apps/
-                        kubectl set image deployment/backend backend=${DOCKER_USER}/webstrike-backend:${BUILD_NUMBER} -n ${K8S_NAMESPACE}
-                        kubectl set image deployment/web web=${DOCKER_USER}/webstrike-web:${BUILD_NUMBER} -n ${K8S_NAMESPACE}
-                        kubectl rollout status deployment/backend -n ${K8S_NAMESPACE} --timeout=180s
-                        kubectl rollout status deployment/web -n ${K8S_NAMESPACE} --timeout=180s
-                        kubectl get pods -n ${K8S_NAMESPACE} -o wide
-                    '''
-                }
+                sh '''
+                    set -e
+                    kubectl apply -f kubernetes/apps/
+                    kubectl get pods -n ${K8S_NAMESPACE} -o wide || true
+                    echo "INFRA_DEPLOY_OK"
+                '''
             }
         }
     }

@@ -1,40 +1,75 @@
-// Przykład CI — produkcyjny pipeline jest w repo aplikacji:
-// https://github.com/artamonovandrei/Counter-Strike/blob/main/Jenkinsfile
+// CI dla repo infra (nie aplikacji).
+// W Multibranch: Script Path = jenkins/Jenkinsfile.ci
 
 pipeline {
     agent any
+
     options {
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '20'))
-        timeout(time: 45, unit: 'MINUTES')
+        timeout(time: 20, unit: 'MINUTES')
         disableConcurrentBuilds(abortPrevious: true)
     }
+
+    triggers {
+        pollSCM('H/5 * * * *')
+    }
+
     stages {
         stage('Checkout') {
-            steps { checkout scm }
+            steps {
+                checkout scm
+            }
         }
-        stage('Backend tests') {
+
+        stage('Layout check') {
             steps {
                 sh '''
                     set -e
-                    python3 -m pip install --user -r backend/requirements.txt
-                    export PATH="$HOME/.local/bin:$PATH"
-                    cd backend && python3 -m pytest -q
+                    test -d terraform
+                    test -d ansible
+                    test -d kubernetes
+                    test -f kubernetes/apps/backend.yaml
+                    test -f kubernetes/apps/web.yaml
+                    echo "INFRA_LAYOUT_OK"
                 '''
             }
         }
-        stage('Build and push') {
+
+        stage('Kubernetes dry-run') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh '''
-                        set -e
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker build -f backend/Dockerfile -t ${DOCKER_USER}/webstrike-backend:${BUILD_NUMBER} .
-                        docker build -f frontend/Dockerfile -t ${DOCKER_USER}/webstrike-web:${BUILD_NUMBER} .
-                        docker push ${DOCKER_USER}/webstrike-backend:${BUILD_NUMBER}
-                        docker push ${DOCKER_USER}/webstrike-web:${BUILD_NUMBER}
-                    '''
-                }
+                sh '''
+                    set -e
+                    if ! command -v kubectl >/dev/null 2>&1; then
+                        echo "kubectl missing — skip dry-run"
+                        exit 0
+                    fi
+                    for f in kubernetes/apps/*.yaml kubernetes/monitoring/*.yaml; do
+                        [ -f "$f" ] || continue
+                        echo "validate: $f"
+                        kubectl apply --dry-run=client -f "$f"
+                    done
+                    echo "K8S_DRY_RUN_OK"
+                '''
+            }
+        }
+
+        stage('Ansible syntax') {
+            steps {
+                sh '''
+                    set -e
+                    if ! command -v ansible-playbook >/dev/null 2>&1; then
+                        echo "ansible-playbook missing — skip syntax check"
+                        exit 0
+                    fi
+                    cd ansible
+                    for pb in playbooks/*.yml; do
+                        echo "syntax: $pb"
+                        ansible-playbook --syntax-check -i inventory/hosts "$pb" || \
+                          ansible-playbook --syntax-check "$pb"
+                    done
+                    echo "ANSIBLE_SYNTAX_OK"
+                '''
             }
         }
     }

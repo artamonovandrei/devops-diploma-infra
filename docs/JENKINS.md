@@ -25,10 +25,19 @@ Pipeline w aplikacji wysyła maila przez Python SMTP (`SES_EMAIL_SENT_OK` w logu
 
 ## Multibranch Pipeline
 
+### Aplikacja (główny CI/CD)
+
 1. New Item → Multibranch Pipeline → np. `webstrike`
 2. Branch Source → GitHub → `artamonovandrei/Counter-Strike`
 3. Script Path: `Jenkinsfile`
 4. Scan / poll co 2 minuty (lub webhook)
+
+### Infra
+
+1. New Item → Multibranch Pipeline → np. `devops-diploma-infra`
+2. Branch Source → GitHub → `artamonovandrei/devops-diploma-infra`
+3. Script Path: `jenkins/Jenkinsfile.ci` (walidacja layout + kubectl dry-run)
+4. Opcjonalnie osobny job z Script Path `jenkins/Jenkinsfile.cd` (apply manifestów na `main`)
 
 ## Agent (opcjonalnie)
 
