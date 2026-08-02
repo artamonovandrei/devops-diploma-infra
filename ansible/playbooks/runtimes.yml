@@ -1,5 +1,6 @@
 ---
-# Python 3.12 + Node.js 22 on all project servers (matches WebStrike Dockerfiles)
+# Python 3.12 (obok systemowego 3.10) + Node.js 22
+# Nie nadpisujemy /usr/bin/python3 — Ubuntu apt wymaga systemowego Pythona.
 - name: Install application runtimes (Python 3.12 + Node 22)
   hosts: all
   become: true
@@ -32,21 +33,16 @@
           - "python{{ python_version }}-dev"
           - python3-pip
           - python3-setuptools
+          - python3-apt
         state: present
 
-    - name: Ensure python3 points to Python {{ python_version }}
-      alternatives:
-        name: python3
-        link: /usr/bin/python3
-        path: "/usr/bin/python{{ python_version }}"
-        priority: 1200
-
-    - name: Ensure python points to Python {{ python_version }}
-      alternatives:
-        name: python
-        link: /usr/bin/python
-        path: "/usr/bin/python{{ python_version }}"
-        priority: 1200
+    - name: Restore system python3 alternatives if needed
+      shell: |
+        if [ -x /usr/bin/python3.10 ]; then
+          update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 100 || true
+          update-alternatives --set python3 /usr/bin/python3.10 || true
+        fi
+      changed_when: false
 
     - name: Bootstrap pip for Python {{ python_version }}
       command: "/usr/bin/python{{ python_version }} -m ensurepip --upgrade"
@@ -83,11 +79,11 @@
       shell: |
         set -e
         echo "python3=$(python3 --version)"
-        echo "python=$(python --version 2>&1 || true)"
-        echo "pip=$(python3 -m pip --version)"
+        echo "python3.12=$(python3.12 --version)"
+        echo "pip312=$(python3.12 -m pip --version)"
         echo "node=$(node --version)"
         echo "npm=$(npm --version)"
-        python3 -c "import sys; assert sys.version_info[:2] == (3, 12), sys.version"
+        python3.12 -c "import sys; assert sys.version_info[:2] == (3, 12), sys.version"
         node -e "const v=process.versions.node.split('.')[0]; if (v!=='22') { console.error(process.versions.node); process.exit(1) }"
       register: runtime_versions
       changed_when: false

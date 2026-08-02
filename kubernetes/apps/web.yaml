@@ -23,10 +23,9 @@ spec:
             - name: http
               containerPort: 80
           env:
-            - name: DOMAIN
-              value: ""
+            # Wymagane przez globalny blok Caddyfile (email ...); bez DOMAIN zostaje HTTP :80
             - name: ACME_EMAIL
-              value: ""
+              value: "artamonovandrei88@gmail.com"
           livenessProbe:
             httpGet:
               path: /healthz
