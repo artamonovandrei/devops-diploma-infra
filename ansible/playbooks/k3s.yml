@@ -17,8 +17,6 @@
           - curl
           - apt-transport-https
           - ca-certificates
-          - python3.10
-          - python3.10-venv
           - python3-pip
         state: present
 
@@ -51,8 +49,8 @@
           args:
             creates: /usr/local/bin/helm
 
-    - name: Create microservices namespace
-      command: kubectl create namespace microservices
+    - name: Create webstrike namespace
+      command: kubectl create namespace webstrike
       register: ns_result
       failed_when: ns_result.rc != 0 and 'AlreadyExists' not in ns_result.stderr
       changed_when: "'created' in ns_result.stdout"
@@ -99,6 +97,18 @@
           ufw:
             rule: allow
             port: "6443"
+            proto: tcp
+
+        - name: Allow WebStrike NodePort
+          ufw:
+            rule: allow
+            port: "30080"
+            proto: tcp
+
+        - name: Allow Grafana NodePort
+          ufw:
+            rule: allow
+            port: "30300"
             proto: tcp
 
         - name: Enable UFW

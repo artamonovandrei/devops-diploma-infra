@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: webstrike
+  labels:
+    app: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: andriiartamonov/webstrike-backend:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: HOST
+              value: "0.0.0.0"
+            - name: PORT
+              value: "8000"
+            - name: LOG_LEVEL
+              value: "info"
+            - name: CORS_ORIGINS
+              value: "*"
+            - name: TICK_HZ
+              value: "60"
+            - name: SNAPSHOT_HZ
+              value: "30"
+            - name: MAP_NAME
+              value: "alley"
+            - name: ROOM_MAX_PLAYERS
+              value: "8"
+            - name: ROOM_MAX_ROOMS
+              value: "2"
+            - name: BOTS_PER_TEAM
+              value: "3"
+            - name: BOT_DIFFICULTY
+              value: "normal"
+            - name: BOT_FILL
+              value: "true"
+            - name: ASSETS_DIR
+              value: "/srv/assets"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "1500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: webstrike
+spec:
+  selector:
+    app: backend
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

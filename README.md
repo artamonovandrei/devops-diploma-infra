@@ -1,44 +1,39 @@
 # DevOps Diploma Infrastructure
 
-Infrastruktura IaC dla pracy dyplomowej DevOps: **Terraform** (AWS EC2 + k3s), **Ansible**, **Jenkins CI/CD**, **Kubernetes**, **Prometheus/Grafana/Loki**.
+Infrastruktura IaC pod pracę dyplomową: Terraform (AWS EC2 + k3s), Ansible, Jenkins CI/CD, Kubernetes, Prometheus/Grafana/Loki.
 
 ## Repozytoria
 
 | Repo | Zawartość |
 |------|-----------|
-| `python-microservices-app` | Fork aplikacji: User Service (FastAPI) + Order Service (Flask) |
+| [Counter-Strike](https://github.com/artamonovandrei/Counter-Strike) | Aplikacja WebStrike (FastAPI + Three.js) |
 | `devops-diploma-infra` (to repo) | Terraform, Ansible, K8s, Jenkins, monitoring, docs |
 
 ## Szybki start (Windows 11)
 
 ```powershell
-# 1. Przygotuj narzędzia
 .\scripts\setup-windows.ps1
-# Restart PowerShell, potem:
 aws configure
 gh auth login
 
-# 2. Utwórz repozytoria GitHub i wypchnij kod
-.\scripts\create-github-repos.ps1
-
-# 3. Skonfiguruj Terraform
-cd terraform\environments\dev
-copy terraform.tfvars.example terraform.tfvars
-# Edytuj: admin_cidr (TwojeIP/32), ssh_public_key
-
-# 4. Bootstrap S3 state + infrastruktura
-cd ..\..\bootstrap
+cd terraform\bootstrap
 terraform init
 terraform apply -auto-approve
+
 cd ..\environments\dev
+# uzupełnij terraform.tfvars (admin_cidr, ssh_public_key)
 terraform init
 terraform apply -auto-approve
+terraform output
+```
 
-# 5. Ansible
-cd ..\..\..\ansible
-# Uzupełnij IP w inventory\hosts
-ansible-playbook playbooks\site.yml
-ansible-playbook playbooks\monitoring.yml
+Ansible (WSL):
+
+```bash
+cd ansible
+# inventory/hosts — IP z terraform output
+ansible-playbook -i inventory/hosts playbooks/site.yml
+ansible-playbook -i inventory/hosts playbooks/monitoring.yml
 ```
 
 Szczegóły: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
@@ -46,59 +41,28 @@ Szczegóły: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 ## Struktura
 
 ```
-terraform/     # IaC — VPC, SG, 2× EC2, S3 state (bootstrap)
-ansible/       # Bootstrap Jenkins, k3s, ufw, Helm, agent
-kubernetes/    # Manifesty aplikacji + monitoring
-jenkins/       # Pipeline CI / CD + Configuration as Code
+terraform/     # VPC, SG, 2× EC2, S3 state (bootstrap)
+ansible/       # Jenkins, k3s, ufw, Python 3.12, Node 22
+kubernetes/    # WebStrike + monitoring
+jenkins/       # przykładowe Jenkinsfile / Casc
 docs/          # ARCHITECTURE, DEPLOYMENT, DEMO
-scripts/       # setup-windows, deploy, e2e-checklist
+scripts/       # helpery
 ```
 
 ## CI/CD
 
-- **Dowolna gałąź:** testy → build Docker → push Docker Hub → e-mail (SES)
-- **main:** dodatkowo deploy na k3s + weryfikacja → e-mail (SES)
+Pipeline w repo aplikacji (`Counter-Strike/Jenkinsfile`):
 
-## Kryteria oceny — pokrycie
+- dowolna gałąź: testy → build Docker → push Docker Hub → e-mail (SES)
+- `main`: dodatkowo deploy na k3s
 
-| Obowiązkowe | Status |
-|-------------|--------|
-| GIT + GitHub (2 projekty) | Tak |
-| Terraform (moduły, reużywalność) | Tak |
-| AWS EC2 + bezpieczeństwo SG | Tak |
-| Ubuntu + UFW | Tak (Ansible) |
-| Docker (obrazy, sieci, wolumeny) | Tak |
-| Docker Hub | Tak (Jenkins) |
-| CI/CD Jenkins + powiadomienia | Tak |
-| Dokumentacja Markdown | Tak |
+## Dostęp po wdrożeniu
 
-| Opcjonalne | Status |
-|------------|--------|
-| Terraform state S3 | Tak |
-| Kubernetes (k3s) | Tak |
-| Ansible | Tak |
-| Prometheus + Grafana + Alertmanager | Tak |
-| Loki | Tak |
-| Jenkins agents | Tak |
-| Unit testy | Tak |
-| Jenkins CaC | Tak (`jenkins-casc.yaml`) |
+- Gra: `http://<k3s-ip>:30080`
+- Health: `http://<k3s-ip>:30080/healthz` oraz `/api/health`
+- Jenkins: `http://<jenkins-ip>:8080`
+- Grafana: `http://<k3s-ip>:30300` (admin / devops-diploma)
 
-## Koszt AWS
+## Autor
 
-~25–35 USD/mies. (2× t3.small). Po pracy: `terraform destroy` lub stop instancji.
-
-## Dokumentacja
-
-- [Architektura](docs/ARCHITECTURE.md)
-- [Wdrożenie od zera](docs/DEPLOYMENT.md)
-- [Scenariusz obrony](docs/DEMO.md)
-- [Konfiguracja Jenkins](docs/JENKINS.md)
-
-## Zanim uruchomisz Terraform
-
-```powershell
-aws configure   # wymagane — Access Key z AWS Console
-.\scripts\generate-tfvars.ps1
-gh auth login
-.\scripts\create-github-repos.ps1
-```
+artamonovandrei

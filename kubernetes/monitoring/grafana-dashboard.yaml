@@ -1,14 +1,14 @@
-apiVersion: v1
+﻿apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-microservices
+  name: grafana-dashboard-webstrike
   namespace: monitoring
   labels:
     grafana_dashboard: "1"
 data:
-  microservices.json: |
+  webstrike.json: |
     {
-      "title": "Microservices Overview",
+      "title": "webstrike Overview",
       "uid": "devops-diploma-ms",
       "timezone": "browser",
       "schemaVersion": 39,
@@ -18,11 +18,11 @@ data:
         {
           "id": 1,
           "type": "stat",
-          "title": "Pods Running (microservices)",
+          "title": "Pods Running (webstrike)",
           "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
           "targets": [
             {
-              "expr": "count(kube_pod_status_phase{namespace=\"microservices\", phase=\"Running\"})",
+              "expr": "count(kube_pod_status_phase{namespace=\"webstrike\", phase=\"Running\"})",
               "legendFormat": "Running"
             }
           ]
@@ -34,7 +34,7 @@ data:
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
           "targets": [
             {
-              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"microservices\", container!=\"\"}[5m])) by (pod)",
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"webstrike\", container!=\"\"}[5m])) by (pod)",
               "legendFormat": "{{pod}}"
             }
           ]
@@ -46,7 +46,7 @@ data:
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
           "targets": [
             {
-              "expr": "sum(container_memory_working_set_bytes{namespace=\"microservices\", container!=\"\"}) by (pod)",
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"webstrike\", container!=\"\"}) by (pod)",
               "legendFormat": "{{pod}}"
             }
           ]
@@ -58,10 +58,11 @@ data:
           "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
           "targets": [
             {
-              "expr": "increase(kube_pod_container_status_restarts_total{namespace=\"microservices\"}[1h])",
+              "expr": "increase(kube_pod_container_status_restarts_total{namespace=\"webstrike\"}[1h])",
               "legendFormat": "{{pod}}"
             }
           ]
         }
       ]
     }
+

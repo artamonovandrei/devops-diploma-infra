@@ -1,36 +1,42 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: user-service
-  namespace: microservices
+  name: web
+  namespace: webstrike
   labels:
-    app: user-service
+    app: web
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: user-service
+      app: web
   template:
     metadata:
       labels:
-        app: user-service
+        app: web
     spec:
       containers:
-        - name: user-service
-          image: andriiartamonov/user-service:latest
+        - name: web
+          image: andriiartamonov/webstrike-web:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 8001
+            - name: http
+              containerPort: 80
+          env:
+            - name: DOMAIN
+              value: ""
+            - name: ACME_EMAIL
+              value: ""
           livenessProbe:
             httpGet:
-              path: /health
-              port: 8001
-            initialDelaySeconds: 10
-            periodSeconds: 15
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 20
           readinessProbe:
             httpGet:
-              path: /health
-              port: 8001
+              path: /healthz
+              port: 80
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:
@@ -44,14 +50,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: user-service
-  namespace: microservices
+  name: web
+  namespace: webstrike
 spec:
   selector:
-    app: user-service
+    app: web
   type: NodePort
   ports:
     - name: http
-      port: 8001
-      targetPort: 8001
-      nodePort: 30001
+      port: 80
+      targetPort: 80
+      nodePort: 30080

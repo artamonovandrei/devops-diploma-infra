@@ -22,9 +22,6 @@
           - apt-transport-https
           - ca-certificates
           - software-properties-common
-          - python3.10
-          - python3.10-venv
-          - python3.10-dev
           - python3-pip
           - git
           - unzip

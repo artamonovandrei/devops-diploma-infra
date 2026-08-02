@@ -1,7 +1,7 @@
-# Grafana + Loki setup for diploma demo
-# - Promtail scrapes microservices pod logs
+﻿# Grafana + Loki setup for diploma demo
+# - Promtail scrapes webstrike pod logs
 # - Grafana datasources: Loki + Prometheus
-# - Dashboard: Microservices Logs
+# - Dashboard: webstrike Logs
 
 apiVersion: v1
 kind: ServiceAccount
@@ -46,18 +46,18 @@ data:
     clients:
       - url: http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
     scrape_configs:
-      - job_name: microservices-pods
+      - job_name: webstrike-pods
         static_configs:
           - targets: [localhost]
             labels:
-              job: microservices
-              namespace: microservices
-              __path__: /var/log/pods/microservices_*/*/*.log
+              job: webstrike
+              namespace: webstrike
+              __path__: /var/log/pods/webstrike_*/*/*.log
         pipeline_stages:
           - cri: {}
           - regex:
               source: filename
-              expression: '/var/log/pods/microservices_(?P<pod>.+)_[0-9a-f-]{36}/(?P<container>[^/]+)/'
+              expression: '/var/log/pods/webstrike_(?P<pod>.+)_[0-9a-f-]{36}/(?P<container>[^/]+)/'
           - labels:
               pod:
               container:---
@@ -164,10 +164,10 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-microservices-logs
+  name: grafana-dashboard-webstrike-logs
   namespace: monitoring
 data:
-  microservices-logs.json: |
+  webstrike-logs.json: |
     {
       "annotations": { "list": [] },
       "editable": true,
@@ -191,11 +191,11 @@ data:
           "targets": [
             {
               "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-              "expr": "{namespace=\"microservices\"}",
+              "expr": "{namespace=\"webstrike\"}",
               "refId": "A"
             }
           ],
-          "title": "Log lines (microservices)",
+          "title": "Log lines (webstrike)",
           "type": "stat"
         },
         {
@@ -209,7 +209,7 @@ data:
           },
           "targets": [
             {
-              "expr": "{namespace=\"microservices\", app=\"user-service\"}",
+              "expr": "{namespace=\"webstrike\", app=\"backend\"}",
               "refId": "A"
             }
           ],
@@ -227,7 +227,7 @@ data:
           },
           "targets": [
             {
-              "expr": "{namespace=\"microservices\", app=\"order-service\"}",
+              "expr": "{namespace=\"webstrike\", app=\"web\"}",
               "refId": "A"
             }
           ],
@@ -251,18 +251,18 @@ data:
           "targets": [
             {
               "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-              "expr": "{namespace=\"microservices\"}",
+              "expr": "{namespace=\"webstrike\"}",
               "legendFormat": "",
               "refId": "A"
             }
           ],
-          "title": "Microservices logs (Loki)",
+          "title": "webstrike logs (Loki)",
           "type": "logs"
         }
       ],
       "refresh": "10s",
       "schemaVersion": 39,
-      "tags": ["devops", "loki", "microservices"],
+      "tags": ["devops", "loki", "webstrike"],
       "templating": {
         "list": [
           {
@@ -276,7 +276,7 @@ data:
       },
       "time": { "from": "now-15m", "to": "now" },
       "timezone": "browser",
-      "title": "DevOps Diploma - Microservices Logs (Loki)",
+      "title": "DevOps Diploma - webstrike Logs (Loki)",
       "uid": "devops-diploma-loki",
       "version": 1
     }
@@ -333,7 +333,7 @@ spec:
             name: grafana-dashboard-provider
         - name: dashboards
           configMap:
-            name: grafana-dashboard-microservices-logs
+            name: grafana-dashboard-webstrike-logs
 ---
 apiVersion: v1
 kind: Service
@@ -348,3 +348,4 @@ spec:
     - port: 3000
       targetPort: 3000
       nodePort: 30300
+

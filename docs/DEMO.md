@@ -1,79 +1,33 @@
-# Scenariusz demonstracji (obrona projektu)
+# Scenariusz obrony (demo)
 
-Czas: 10–12 minut
+## Wstęp (3–5 min)
 
-## 1. Wprowadzenie (3 min)
+- Aplikacja: WebStrike (browser FPS) w repo Counter-Strike
+- IaC: Terraform + Ansible
+- CI/CD: Jenkins → Docker Hub → k3s
+- Monitoring: Prometheus, Grafana, Loki
 
-- **Projekt:** Microserwisy Python (User + Order) z pełnym pipeline DevOps
-- **Narzędzia:** Terraform, Ansible, Docker, k3s, Jenkins, Prometheus, Grafana, Loki, AWS SES
-- **Rezultat:** Automatyczne wdrożenie od commita do działającej aplikacji z monitoringiem
+## Demonstracja (10–12 min)
 
-## 2. Demonstracja live (10 min)
-
-### 2.1 Architektura (1 min)
-Pokaż diagram z `docs/ARCHITECTURE.md` — 2 EC2, 2 repozytoria GitHub, przepływ CI/CD.
-
-### 2.2 Infrastruktura jako Kod (2 min)
-```bash
-cd terraform/environments/dev
-terraform plan
-# Pokaż: infrastruktura zdefiniowana w kodzie, idempotentna
-terraform output
-```
-
-### 2.3 Pipeline CI — commit na branch (3 min)
-```bash
-git checkout -b feature/demo
-echo "# demo" >> README.md
-git add . && git commit -m "demo: trigger CI pipeline"
-git push origin feature/demo
-```
-- Pokaż Jenkins: stages Checkout → Tests → Build → Push Docker Hub
-- Pokaż e-mail z wynikiem CI (AWS SES)
-- **Bez deploy** — branch != main
-
-### 2.4 Pipeline CD — merge do main (3 min)
-```bash
-git checkout main
-git merge feature/demo
-git push origin main
-```
-- Pokaż Jenkins CD: deploy na k3s
-- Pokaż rollout: `kubectl get pods -n microservices`
-- Test API:
-  ```bash
-  curl http://K3S_IP/users/1
-  curl http://K3S_IP/orders/1
-  ```
-
-### 2.5 Monitoring (2 min)
-- Grafana: dashboard z metrykami podów
-- Loki: logi z order-service i user-service
-- Alertmanager: reguła PodCrashLooping
-
-### 2.6 Docker lokalnie (1 min, opcjonalnie)
-```powershell
-docker compose up -d
-pytest tests/ -v
-docker compose down
-```
-
-## 3. Pytania — przygotowane odpowiedzi
-
-| Pytanie | Odpowiedź |
-|---------|-----------|
-| Dlaczego k3s zamiast EKS? | Koszt: EKS ~72 USD/mies. sam control plane; k3s ~0 USD |
-| Jak zapewniasz idempotentność? | Terraform + Ansible z `creates`/`until`; `terraform plan` = no changes |
-| Jak chronisz serwery? | SG ograniczone do mojego IP, UFW, sekrety w Jenkins Credentials |
-| Co robi Order Service? | Woła User Service przez HTTP, waliduje użytkownika przed utworzeniem zamówienia |
-| Jak działają powiadomienia? | Jenkins Email Extension → AWS SES SMTP → mój e-mail |
+1. Pokaż kod / Docker Compose lokalnie albo UI na `http://K3S_IP:30080`
+2. Jenkins: ostatni zielony build na `main` (testy → push → deploy)
+3. `kubectl get pods -n webstrike`
+4. Zmiana w README / drobny commit → pipeline → e-mail SES
+5. Grafana + Loki: logi namespace `webstrike`
 
 ## Checklist przed obroną
 
-- [ ] Oba EC2 uruchomione
-- [ ] Jenkins pipeline zielony
-- [ ] Aplikacja odpowiada na curl
-- [ ] Grafana dostępna
+- [ ] Terraform state w S3, infra wstała
+- [ ] Jenkins Multibranch na Counter-Strike
+- [ ] Docker Hub R/W token
 - [ ] E-mail z ostatniego buildu w skrzynce
-- [ ] `terraform plan` bez zmian
-- [ ] Docker compose lokalnie działa (backup demo)
+- [ ] Gra odpowiada na `:30080`
+- [ ] Grafana `:30300`
+
+## Przykładowe pytania
+
+| Pytanie | Odpowiedź |
+|---------|-----------|
+| Dlaczego osobne repo infra? | Kod gry oddzielony od IaC; dwa projekty na GitHub |
+| Jak działa proxy? | Caddy w podzie `web` serwuje klienta i proxy `/api` + `/socket.io` do Service `backend` |
+| Powiadomienia? | Jenkins → AWS SES SMTP |

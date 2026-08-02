@@ -1,123 +1,67 @@
-# Wdrożenie od zera
+# Deployment
 
-Instrukcja wdrożenia całego projektu w kilku krokach.
+## Wymagania
 
-## Wymagania wstępne
+- Konto AWS, AWS CLI (`aws configure`, region `eu-central-1`)
+- Terraform >= 1.5
+- Ansible (WSL na Windows)
+- Klucz SSH `~/.ssh/devops-diploma`
+- Docker Hub + e-mail zweryfikowany w SES
 
-- Konto AWS z aktywnym kredytem
-- AWS CLI skonfigurowany:
-  ```powershell
-  aws configure
-  # Access Key ID / Secret / region: eu-central-1
-  aws sts get-caller-identity
-  ```
-- Terraform >= 1.5 (`winget install Hashicorp.Terraform`)
-- Ansible >= 2.14 (najłatwiej przez WSL Ubuntu: `sudo apt install ansible`)
-- Klucz SSH: `.\scripts\setup-windows.ps1` lub `.\scripts\generate-tfvars.ps1`
-- Docker Desktop uruchomiony
-- Konto Docker Hub
-- E-mail zweryfikowany w AWS SES
-- GitHub: `gh auth login`
+## SES
 
-## Krok 1: Przygotowanie AWS SES
-
-```bash
-aws ses verify-email-identity --email-address twoj@email.com --region eu-central-1
-# Potwierdź link w skrzynce e-mail
+```powershell
+aws ses verify-email-identity --email-address artamonovandrei88@gmail.com --region eu-central-1
 ```
 
-Wygeneruj SMTP credentials w konsoli AWS SES (SMTP settings).
+SMTP credentials: IAM user z `ses:SendEmail` / `ses:SendRawEmail`, hasło SMTP wyliczone z secret key (SigV4).
 
-## Krok 2: Bootstrap Terraform State (jednorazowo)
+## Terraform
 
-```bash
-cd terraform/bootstrap
-terraform init
-terraform apply -auto-approve
-```
-
-## Krok 3: Wdróż infrastrukturę
-
-```bash
-# Pobierz swoje publiczne IP
-curl ifconfig.me
-
-cd terraform/environments/dev
-cp terraform.tfvars.example terraform.tfvars
-# Edytuj: admin_cidr, ssh_public_key
-
+```powershell
+cd terraform\bootstrap
 terraform init
 terraform apply -auto-approve
 
-# Zapisz outputy
+cd ..\environments\dev
+terraform init
+terraform apply -auto-approve
 terraform output
 ```
 
-## Krok 4: Ansible bootstrap
+## Ansible
 
 ```bash
 cd ansible
 cp inventory/hosts.example inventory/hosts
-# Uzupełnij IP z terraform output
+# wstaw jenkins_public_ip i k3s_public_ip
 
 ansible-playbook -i inventory/hosts playbooks/site.yml
-# site.yml instaluje też Python 3.10 + Node.js 22 (playbooks/runtimes.yml)
-ansible-playbook -i inventory/hosts playbooks/jenkins-agent.yml
+# site.yml: Jenkins, k3s, Python 3.12 + Node 22
 ansible-playbook -i inventory/hosts playbooks/monitoring.yml
 ```
 
-Runtimes na serwerach: **Python 3.10** + **Node.js 22** (Jenkins i k3s). Obrazy aplikacji: `python:3.10-slim`.
+Runtimes na hostach: **Python 3.12** + **Node.js 22**. Obrazy gry: `python:3.12-slim` i `node:22-alpine` (build) / Caddy.
 
-## Krok 5: Konfiguracja Jenkins
+## Jenkins
 
-1. Otwórz `http://JENKINS_IP:8080`
-2. Hasło początkowe: `ssh ubuntu@JENKINS_IP "sudo cat /var/lib/jenkins/secrets/initialAdminPassword"`
-3. Zainstaluj: Git, Docker Pipeline, Email Extension, Credentials Binding, Configuration as Code
-4. Dodaj credentials:
-   - `dockerhub-credentials` (Username/Password)
-   - `github-token` (Secret text — PAT GitHub)
-5. Skonfiguruj SMTP (AWS SES):
-   - Host: `email-smtp.eu-central-1.amazonaws.com`
-   - Port: 587, TLS
-   - Credentials z SES SMTP
-6. Utwórz Multibranch Pipeline wskazujący na repo aplikacji
-7. Dodaj node `k3s-agent` (SSH do EC2 k3s)
+1. `http://JENKINS_IP:8080`
+2. Pluginy: Git, GitHub Branch Source, Pipeline, Docker Pipeline, Email Extension
+3. Credentials: `dockerhub-credentials`, GitHub PAT, `ses-smtp`
+4. Multibranch Pipeline → repo `artamonovandrei/Counter-Strike`, Script Path: `Jenkinsfile`
+5. Skopiuj kubeconfig k3s do `/var/lib/jenkins/.kube/config` (API na prywatnym IP k3s)
 
-## Krok 6: Wdróż aplikację
+## Aplikacja
 
 ```bash
-# Na serwerze k3s lub przez Jenkins CD pipeline
 kubectl apply -f kubernetes/apps/
 ```
 
-## Krok 7: Weryfikacja
+Sprawdzenie:
 
-```bash
-# Health check
-curl http://K3S_IP/users/1
-curl http://K3S_IP/orders/1
+- `http://K3S_IP:30080/healthz`
+- `http://K3S_IP:30080/api/health`
 
-# Monitoring
-kubectl port-forward -n monitoring svc/kube-prometheus-grafana 3000:80
-# Grafana: admin / devops-diploma
+## Koszty
 
-# Idempotentność Terraform
-terraform plan  # powinno pokazać: No changes
-```
-
-## Czyszczenie (oszczędność kosztów)
-
-```bash
-cd terraform/environments/dev
-terraform destroy -auto-approve
-```
-
-## Rozwiązywanie problemów
-
-| Problem | Rozwiązanie |
-|---------|-------------|
-| Jenkins nie startuje | `sudo systemctl status jenkins` na EC2 |
-| k3s nie gotowy | `sudo k3s kubectl get nodes` |
-| Pipeline nie pushuje | Sprawdź credentials Docker Hub |
-| Brak e-maili | SES sandbox — tylko zweryfikowane adresy |
-| OOM na t3.small | Zmniejsz repliki do 1 w manifestach K8s |
+Gdy nie pracujesz: `terraform destroy` w `environments/dev` albo Stop EC2.

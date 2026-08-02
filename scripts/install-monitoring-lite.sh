@@ -33,14 +33,10 @@ data:
       - job_name: prometheus
         static_configs:
           - targets: ['localhost:9090']
-      - job_name: user-service
-        metrics_path: /health
+      - job_name: webstrike-backend
+        metrics_path: /api/health
         static_configs:
-          - targets: ['user-service.microservices.svc.cluster.local:8001']
-      - job_name: order-service
-        metrics_path: /health
-        static_configs:
-          - targets: ['order-service.microservices.svc.cluster.local:8002']
+          - targets: ['backend.webstrike.svc.cluster.local:8000']
       - job_name: alertmanager
         static_configs:
           - targets: ['alertmanager.monitoring.svc.cluster.local:9093']
@@ -188,6 +184,6 @@ for i in $(seq 1 30); do
 done
 
 kubectl get pods -n monitoring
-kubectl get pods -n microservices
+kubectl get pods -n webstrike
 echo "MONITORING_OK"
 echo "Grafana: http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):30300  (admin / devops-diploma)"

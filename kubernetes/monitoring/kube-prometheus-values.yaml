@@ -1,4 +1,4 @@
-# Lightweight values for t3.small (2 GB RAM)
+﻿# Lightweight values for t3.small (2 GB RAM)
 
 grafana:
   adminPassword: devops-diploma
@@ -65,14 +65,15 @@ kubeProxy:
   enabled: false
 
 additionalPrometheusRulesMap:
-  microservices-alerts:
+  webstrike-alerts:
     groups:
-      - name: microservices
+      - name: webstrike
         rules:
           - alert: PodCrashLooping
-            expr: rate(kube_pod_container_status_restarts_total{namespace="microservices"}[5m]) > 0
+            expr: rate(kube_pod_container_status_restarts_total{namespace="webstrike"}[5m]) > 0
             for: 2m
             labels:
               severity: warning
             annotations:
               summary: "Pod {{ $labels.pod }} is crash looping"
+

@@ -12,11 +12,9 @@
         name: openjdk-17-jdk
         state: present
 
-    - name: Ensure Python 3.10 present on agent
+    - name: Ensure Python tooling present on agent
       apt:
         name:
-          - python3.10
-          - python3.10-venv
           - python3-pip
         state: present
 
