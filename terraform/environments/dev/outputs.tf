@@ -32,6 +32,11 @@ output "jenkins_url" {
   value = "http://${module.jenkins.public_ip}:8080"
 }
 
+output "jenkins_home_volume_id" {
+  description = "Persistent Jenkins /var/lib/jenkins volume — keep after destroy"
+  value       = module.jenkins.jenkins_home_volume_id
+}
+
 output "app_url" {
   value = "http://${module.k3s.public_ip}"
 }

@@ -13,6 +13,10 @@ data "aws_ami" "ubuntu" {
   }
 }
 
+data "aws_subnet" "jenkins" {
+  id = var.subnet_id
+}
+
 resource "aws_instance" "jenkins" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
@@ -39,6 +43,32 @@ resource "aws_instance" "jenkins" {
     Name = "${var.project_name}-jenkins"
     Role = "jenkins"
   })
+}
+
+# Trwały dysk z jobami/credentials — przeżywa terraform destroy (przez skrypt pause).
+resource "aws_ebs_volume" "jenkins_home" {
+  count = var.jenkins_home_volume_id == "" ? 1 : 0
+
+  availability_zone = data.aws_subnet.jenkins.availability_zone
+  size              = var.jenkins_home_volume_size_gb
+  type              = "gp3"
+  encrypted         = true
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-jenkins-home"
+    Role = "jenkins-data"
+  })
+}
+
+locals {
+  jenkins_home_volume_id = var.jenkins_home_volume_id != "" ? var.jenkins_home_volume_id : aws_ebs_volume.jenkins_home[0].id
+}
+
+resource "aws_volume_attachment" "jenkins_home" {
+  device_name  = "/dev/sdf"
+  volume_id    = local.jenkins_home_volume_id
+  instance_id  = aws_instance.jenkins.id
+  force_detach = true
 }
 
 resource "aws_eip" "jenkins" {

@@ -29,3 +29,14 @@ variable "k3s_instance_type" {
   type    = string
   default = "t3.small"
 }
+
+variable "jenkins_home_volume_id" {
+  description = "Reuse existing Jenkins data EBS after aws-pause (e.g. vol-xxxx). Empty = create new."
+  type        = string
+  default     = ""
+}
+
+variable "jenkins_home_volume_size_gb" {
+  type    = number
+  default = 20
+}

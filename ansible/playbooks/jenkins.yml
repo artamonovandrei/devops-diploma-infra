@@ -4,6 +4,8 @@
   become: true
   vars:
     java_package: openjdk-21-jre
+    jenkins_home: /var/lib/jenkins
+    jenkins_mount: /mnt/jenkins-home
 
   tasks:
     - name: Update apt cache
@@ -25,6 +27,8 @@
           - python3-pip
           - git
           - unzip
+          - xfsprogs
+          - rsync
         state: present
 
     - name: Install Docker
@@ -97,6 +101,99 @@
           args:
             creates: /usr/local/bin/aws
 
+    # ── Persistent EBS for Jenkins home ─────────────────────────────────────
+    - name: Check if /var/lib/jenkins already bind-mounted
+      command: findmnt -n {{ jenkins_home }}
+      register: jenkins_home_mnt
+      changed_when: false
+      failed_when: false
+
+    - name: Prepare persistent Jenkins volume
+      when: jenkins_home_mnt.rc != 0
+      block:
+        - name: Find unmounted data disk (not root)
+          shell: |
+            set -e
+            root_src=$(findmnt -n -o SOURCE / | sed 's/p[0-9]*$//')
+            for d in /dev/nvme*n1 /dev/xvd[f-z] /dev/sd[f-z]; do
+              [ -b "$d" ] || continue
+              case "$d" in
+                "$root_src"|/dev/nvme0n1|/dev/xvda|/dev/sda) continue ;;
+              esac
+              if ! findmnt -n "$d" >/dev/null 2>&1; then
+                echo "$d"
+                exit 0
+              fi
+            done
+            # already mounted at jenkins_mount?
+            if findmnt -n "{{ jenkins_mount }}" >/dev/null 2>&1; then
+              findmnt -n -o SOURCE "{{ jenkins_mount }}"
+              exit 0
+            fi
+            exit 1
+          args:
+            executable: /bin/bash
+          register: jenkins_disk
+          changed_when: false
+          retries: 36
+          delay: 5
+          until: jenkins_disk.rc == 0
+
+        - name: Check filesystem on data disk
+          command: "blkid -o value -s TYPE {{ jenkins_disk.stdout }}"
+          register: jenkins_fs
+          changed_when: false
+          failed_when: false
+
+        - name: Format data disk (first time only)
+          filesystem:
+            fstype: xfs
+            dev: "{{ jenkins_disk.stdout }}"
+          when: jenkins_fs.stdout | length == 0
+
+        - name: Create mount point
+          file:
+            path: "{{ jenkins_mount }}"
+            state: directory
+            mode: "0755"
+
+        - name: Mount Jenkins data volume
+          mount:
+            path: "{{ jenkins_mount }}"
+            src: "{{ jenkins_disk.stdout }}"
+            fstype: xfs
+            opts: defaults,nofail
+            state: mounted
+
+        - name: Stop Jenkins before migrating home
+          systemd:
+            name: jenkins
+            state: stopped
+          failed_when: false
+
+        - name: Migrate root Jenkins home onto empty data volume
+          shell: |
+            set -e
+            if [ -d {{ jenkins_home }} ] && [ ! -f {{ jenkins_mount }}/config.xml ]; then
+              rsync -a {{ jenkins_home }}/ {{ jenkins_mount }}/
+            fi
+          args:
+            executable: /bin/bash
+
+        - name: Ensure bind target exists
+          file:
+            path: "{{ jenkins_home }}"
+            state: directory
+            mode: "0755"
+
+        - name: Bind-mount data volume onto /var/lib/jenkins
+          mount:
+            path: "{{ jenkins_home }}"
+            src: "{{ jenkins_mount }}"
+            fstype: none
+            opts: bind
+            state: mounted
+
     - name: Install Jenkins
       block:
         - name: Ensure apt keyrings directory exists
@@ -122,6 +219,20 @@
             name: jenkins
             state: present
             update_cache: true
+
+        - name: Ensure jenkins home ownership
+          file:
+            path: "{{ jenkins_home }}"
+            state: directory
+            owner: jenkins
+            group: jenkins
+            recurse: true
+
+        - name: Add jenkins user to docker group
+          user:
+            name: jenkins
+            groups: docker
+            append: true
 
         - name: Enable and start Jenkins
           systemd:
@@ -164,6 +275,6 @@
       retries: 30
       delay: 10
 
-    - name: Display Jenkins initial admin password location
+    - name: Persistence reminder
       debug:
-        msg: "Jenkins initial password: run 'sudo cat /var/lib/jenkins/secrets/initialAdminPassword' on Jenkins server"
+        msg: "Jenkins home is on persistent EBS. Before terraform destroy run: .\\scripts\\aws-pause.ps1"

@@ -26,6 +26,24 @@
 4. Multibranch Pipeline → `artamonovandrei/Counter-Strike`, Script Path `Jenkinsfile`
 5. Po pierwszym pushu na `main` pipeline zrobi build/push/deploy
 
-## Koszty
+## Koszty — pauza z zachowaniem Jenkinsa
 
-`terraform destroy` w `terraform/environments/dev` gdy nie pracujesz.
+**Nie** używaj gołego `terraform destroy`, jeśli chcesz mieć te same joby/credentials po starcie.
+
+1. **Pierwszy raz** (gdy infra jeszcze działa) — dołóż dysk EBS i zmigruj home:
+   ```powershell
+   cd terraform\environments\dev
+   terraform apply -auto-approve
+   # Ansible (WSL): playbooks/jenkins.yml / site.yml
+   ```
+2. **Wyłączanie kosztów** (dysk Jenkins zostaje w AWS):
+   ```powershell
+   .\scripts\aws-pause.ps1
+   ```
+3. **Ponowny start** (ten sam EBS → te same ustawienia Jenkins):
+   ```powershell
+   .\scripts\aws-resume.ps1
+   # potem Ansible site.yml z nowymi IP
+   ```
+
+Volume ID jest w `.secrets/jenkins-home-volume-id.txt` (nie commituj).

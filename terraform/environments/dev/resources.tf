@@ -17,12 +17,14 @@ module "network" {
 module "jenkins" {
   source = "../../modules/ec2-jenkins"
 
-  project_name         = var.project_name
-  instance_type        = var.jenkins_instance_type
-  subnet_id            = module.network.public_subnet_id
-  security_group_ids   = [module.network.jenkins_security_group_id]
-  key_name             = module.network.key_name
-  tags                 = local.common_tags
+  project_name              = var.project_name
+  instance_type             = var.jenkins_instance_type
+  subnet_id                 = module.network.public_subnet_id
+  security_group_ids        = [module.network.jenkins_security_group_id]
+  key_name                  = module.network.key_name
+  tags                      = local.common_tags
+  jenkins_home_volume_id    = var.jenkins_home_volume_id
+  jenkins_home_volume_size_gb = var.jenkins_home_volume_size_gb
 }
 
 module "k3s" {

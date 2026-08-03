@@ -1,5 +1,10 @@
 # Jenkins
 
+## Trwałe ustawienia (przeżywa destroy)
+
+`/var/lib/jenkins` leży na osobnym EBS (`*-jenkins-home`).  
+Pauza/wznowienie: `scripts/aws-pause.ps1` → `scripts/aws-resume.ps1` (nie zwykły `terraform destroy`).
+
 ## Logowanie
 
 ```powershell
@@ -31,6 +36,18 @@ Pipeline w aplikacji wysyła maila przez Python SMTP (`SES_EMAIL_SENT_OK` w logu
 2. Branch Source → GitHub → `artamonovandrei/Counter-Strike`
 3. Script Path: `Jenkinsfile`
 4. Scan / poll co 2 minuty (lub webhook)
+
+**Gałęzie (wymagane na pokaz):**
+
+| Gałąź | Pipeline |
+|-------|----------|
+| `develop` | CI → po SUCCESS automatyczny merge do `main` |
+| `main` | CI + CD (deploy na k3s) |
+
+Credential `github-token` musi mieć prawo **zapisu** do repo (PAT scope `repo`), inaczej stage `Promote develop to main` padnie.
+
+Po utworzeniu `develop` na GitHub: w jobie Multibranch → **Scan Multibranch Pipeline Now**.  
+W Branch Sources nie filtruj tylko `main` (Discover branches → all / regex `main\|develop`).
 
 ### Infra
 
