@@ -60,8 +60,10 @@ Pipeline w repo aplikacji (`Counter-Strike/Jenkinsfile`):
 
 - Gra: `http://<k3s-ip>:30080`
 - Health: `http://<k3s-ip>:30080/healthz` oraz `/api/health`
+- Metrics (Prometheus): `http://<k3s-ip>:30080/metrics` (przez Caddy) lub backend `/metrics`
 - Jenkins: `http://<jenkins-ip>:8080`
-- Grafana: `http://<k3s-ip>:30300` (admin / devops-diploma)
+- Prometheus UI: `http://<k3s-ip>:30090` (targets → `webstrike-backend`)
+- Grafana: `http://<k3s-ip>:30300` (admin / devops-diploma, datasource Prometheus)
 
 ## Autor
 

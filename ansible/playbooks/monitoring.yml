@@ -1,63 +1,47 @@
 ---
-- name: Deploy monitoring stack on k3s
+- name: Deploy monitoring stack (Prometheus + Grafana + Loki) on k3s
   hosts: k3s
   become: true
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
   tasks:
-    - name: Add Prometheus Helm repo
-      command: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-      register: helm_prom
-      changed_when: "'has been added' in helm_prom.stdout"
-      failed_when: helm_prom.rc != 0 and 'already exists' not in helm_prom.stderr
+    - name: Ensure monitoring scripts/manifests directory on host
+      file:
+        path: /opt/devops-diploma-infra
+        state: directory
+        mode: "0755"
 
-    - name: Add Grafana Helm repo
-      command: helm repo add grafana https://grafana.github.io/helm-charts
-      register: helm_graf
-      changed_when: "'has been added' in helm_graf.stdout"
-      failed_when: helm_graf.rc != 0 and 'already exists' not in helm_graf.stderr
+    - name: Sync infra repo checkout for manifests (if present)
+      stat:
+        path: /opt/devops-diploma-infra/.git
+      register: infra_git
 
-    - name: Update Helm repos
-      command: helm repo update
+    - name: Update infra git checkout
+      when: infra_git.stat.exists
+      shell: |
+        set -e
+        git -C /opt/devops-diploma-infra fetch --depth 1 origin main
+        git -C /opt/devops-diploma-infra reset --hard origin/main
       changed_when: true
 
-    - name: Copy kube-prometheus-stack values
+    - name: Copy monitoring manifests from controller
       copy:
-        src: "{{ playbook_dir }}/../../kubernetes/monitoring/kube-prometheus-values.yaml"
-        dest: /tmp/kube-prometheus-values.yaml
+        src: "{{ playbook_dir }}/../../kubernetes/monitoring/"
+        dest: /opt/devops-diploma-infra/kubernetes/monitoring/
+        mode: "0644"
 
-    - name: Install kube-prometheus-stack
-      command: >
-        helm upgrade --install kube-prometheus prometheus-community/kube-prometheus-stack
-        --namespace monitoring
-        --create-namespace
-        -f /tmp/kube-prometheus-values.yaml
-        --wait --timeout 15m
-      register: prom_install
-      changed_when: "'has been upgraded' in prom_install.stdout or 'has been installed' in prom_install.stdout"
-
-    - name: Copy Loki values
+    - name: Copy install-monitoring-lite.sh
       copy:
-        src: "{{ playbook_dir }}/../../kubernetes/monitoring/loki-values.yaml"
-        dest: /tmp/loki-values.yaml
+        src: "{{ playbook_dir }}/../../scripts/install-monitoring-lite.sh"
+        dest: /opt/devops-diploma-infra/scripts/install-monitoring-lite.sh
+        mode: "0755"
 
-    - name: Install Loki stack
-      command: >
-        helm upgrade --install loki grafana/loki-stack
-        --namespace monitoring
-        -f /tmp/loki-values.yaml
-        --wait --timeout 15m
-      register: loki_install
-      failed_when: loki_install.rc != 0 and 'cannot re-use a name' not in loki_install.stderr
-      changed_when: "'has been upgraded' in loki_install.stdout or 'has been installed' in loki_install.stdout"
+    - name: Install lite monitoring (Prometheus NodePort 30090, Grafana 30300)
+      command: /opt/devops-diploma-infra/scripts/install-monitoring-lite.sh
+      register: mon
+      changed_when: "'MONITORING_OK' in mon.stdout"
 
-    - name: Apply Grafana dashboard ConfigMap
-      command: kubectl apply -f /tmp/grafana-dashboard.yaml
-      ignore_errors: true
-
-    - name: Display Grafana access info
+    - name: Show monitoring endpoints
       debug:
-        msg: |
-          Grafana: kubectl -n monitoring port-forward svc/kube-prometheus-grafana 3000:80
-          Default user: admin / devops-diploma
+        msg: "{{ mon.stdout_lines | default([]) | select('search', 'http') | list }}"

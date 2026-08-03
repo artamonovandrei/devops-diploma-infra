@@ -111,6 +111,12 @@
             port: "30300"
             proto: tcp
 
+        - name: Allow Prometheus NodePort
+          ufw:
+            rule: allow
+            port: "30090"
+            proto: tcp
+
         - name: Enable UFW
           ufw:
             state: enabled
