@@ -38,5 +38,13 @@ output "jenkins_home_volume_id" {
 }
 
 output "app_url" {
-  value = "http://${module.k3s.public_ip}"
+  value = "http://${module.k3s.public_ip}:30080"
+}
+
+output "prometheus_url" {
+  value = "http://${module.k3s.public_ip}:30090"
+}
+
+output "grafana_url" {
+  value = "http://${module.k3s.public_ip}:30300"
 }

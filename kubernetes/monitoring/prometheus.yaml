@@ -25,6 +25,12 @@ data:
           - targets: ['backend.webstrike.svc.cluster.local:8000']
             labels:
               app: webstrike
+      - job_name: node-exporter
+        static_configs:
+          - targets: ['node-exporter.monitoring.svc.cluster.local:9100']
+      - job_name: kube-state-metrics
+        static_configs:
+          - targets: ['kube-state-metrics.monitoring.svc.cluster.local:8080']
       - job_name: alertmanager
         static_configs:
           - targets: ['alertmanager.monitoring.svc.cluster.local:9093']

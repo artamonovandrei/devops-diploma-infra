@@ -124,18 +124,18 @@ resource "aws_security_group" "k3s" {
   }
 
   ingress {
-    description = "Kubernetes API from Jenkins SG"
-    from_port   = 6443
-    to_port     = 6443
-    protocol    = "tcp"
+    description     = "Kubernetes API from Jenkins SG"
+    from_port       = 6443
+    to_port         = 6443
+    protocol        = "tcp"
     security_groups = [aws_security_group.jenkins.id]
   }
 
   ingress {
-    description = "Jenkins agent from Jenkins SG"
-    from_port   = 50000
-    to_port     = 50000
-    protocol    = "tcp"
+    description     = "Jenkins agent from Jenkins SG"
+    from_port       = 50000
+    to_port         = 50000
+    protocol        = "tcp"
     security_groups = [aws_security_group.jenkins.id]
   }
 
@@ -148,19 +148,19 @@ resource "aws_security_group" "k3s" {
   }
 
   ingress {
-    description = "Grafana NodePort"
+    description = "Grafana NodePort (admin only)"
     from_port   = 30300
     to_port     = 30300
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.admin_cidr]
   }
 
   ingress {
-    description = "Prometheus NodePort"
+    description = "Prometheus NodePort (admin only)"
     from_port   = 30090
     to_port     = 30090
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.admin_cidr]
   }
 
   egress {

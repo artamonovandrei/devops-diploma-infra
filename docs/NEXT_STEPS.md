@@ -1,13 +1,18 @@
 # Status (WebStrike)
 
-## Live endpoints
+> Środowisko AWS jest uruchamiane na demo (`aws-resume` / `aws-pause`).
+> Aktualne IP zawsze z: `terraform -chdir=terraform/environments/dev output`
+
+## Live endpoints (po `terraform output`)
 
 | Usługa | URL |
 |--------|-----|
-| Gra | http://52.58.172.254:30080 |
-| API health | http://52.58.172.254:30080/api/health |
-| Jenkins | http://63.179.217.130:8080 |
-| Grafana | http://52.58.172.254:30300 (admin / devops-diploma) |
+| Gra | `app_url` → `:30080` |
+| API health | `http://<k3s-ip>:30080/api/health` |
+| Metrics | `http://<k3s-ip>:30080/metrics` |
+| Jenkins | `jenkins_url` |
+| Prometheus | `prometheus_url` → `:30090` (Targets: webstrike-backend UP) |
+| Grafana | `grafana_url` → `:30300` (admin z Secret `grafana-admin`) |
 
 ## Zrobione
 
