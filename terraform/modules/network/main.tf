@@ -163,6 +163,14 @@ resource "aws_security_group" "k3s" {
     cidr_blocks = [var.admin_cidr]
   }
 
+  ingress {
+    description = "Alertmanager NodePort (admin only)"
+    from_port   = 30903
+    to_port     = 30903
+    protocol    = "tcp"
+    cidr_blocks = [var.admin_cidr]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
