@@ -1,47 +1,40 @@
 ---
-- name: Deploy monitoring stack (Prometheus + Grafana + Loki) on k3s
+- name: Install Prometheus + Grafana (simple stack)
   hosts: k3s
   become: true
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
   tasks:
-    - name: Ensure monitoring scripts/manifests directory on host
+    - name: Ensure infra checkout directory
       file:
-        path: /opt/devops-diploma-infra
+        path: /opt/devops-diploma-infra/scripts
         state: directory
         mode: "0755"
 
-    - name: Sync infra repo checkout for manifests (if present)
-      stat:
-        path: /opt/devops-diploma-infra/.git
-      register: infra_git
+    - name: Ensure monitoring manifests directory
+      file:
+        path: /opt/devops-diploma-infra/kubernetes/monitoring
+        state: directory
+        mode: "0755"
 
-    - name: Update infra git checkout
-      when: infra_git.stat.exists
-      shell: |
-        set -e
-        git -C /opt/devops-diploma-infra fetch --depth 1 origin main
-        git -C /opt/devops-diploma-infra reset --hard origin/main
-      changed_when: true
-
-    - name: Copy monitoring manifests from controller
+    - name: Sync monitoring stack from controller
       copy:
-        src: "{{ playbook_dir }}/../../kubernetes/monitoring/"
-        dest: /opt/devops-diploma-infra/kubernetes/monitoring/
+        src: "{{ playbook_dir }}/../../kubernetes/monitoring/stack.yaml"
+        dest: /opt/devops-diploma-infra/kubernetes/monitoring/stack.yaml
         mode: "0644"
 
-    - name: Copy install-monitoring-lite.sh
+    - name: Sync install script
       copy:
         src: "{{ playbook_dir }}/../../scripts/install-monitoring-lite.sh"
         dest: /opt/devops-diploma-infra/scripts/install-monitoring-lite.sh
         mode: "0755"
 
-    - name: Install lite monitoring (Prometheus NodePort 30090, Grafana 30300)
+    - name: Apply Prometheus + Grafana
       command: /opt/devops-diploma-infra/scripts/install-monitoring-lite.sh
       register: mon
       changed_when: "'MONITORING_OK' in mon.stdout"
 
-    - name: Show monitoring endpoints
+    - name: Show URLs
       debug:
-        msg: "{{ mon.stdout_lines | default([]) | select('search', 'http') | list }}"
+        msg: "{{ mon.stdout_lines | select('search', 'http') | list }}"

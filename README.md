@@ -1,69 +1,62 @@
-# DevOps Diploma Infrastructure
+# DevOps Diploma — infrastruktura WebStrike
 
-Infrastruktura IaC pod pracę dyplomową: Terraform (AWS EC2 + k3s), Ansible, Jenkins CI/CD, Kubernetes, Prometheus/Grafana/Loki.
+Prosty stos: **Terraform → Ansible → Jenkins → k3s → Prometheus/Grafana**.
 
-## Repozytoria
+CI/CD jest tylko w **Jenkins** (bez GitHub Actions).
 
-| Repo | Zawartość |
-|------|-----------|
-| [Counter-Strike](https://github.com/artamonovandrei/Counter-Strike) | Aplikacja WebStrike (FastAPI + Three.js) |
-| `devops-diploma-infra` (to repo) | Terraform, Ansible, K8s, Jenkins, monitoring, docs |
+## Repo
 
-## Szybki start (Windows 11)
+| Repo | Rola |
+|------|------|
+| [Counter-Strike](https://github.com/artamonovandrei/Counter-Strike) | Gra + `Jenkinsfile` |
+| to repo | Terraform, Ansible, K8s, monitoring |
+
+## Start (codziennie / po pauzie)
+
+**1. PowerShell — AWS**
 
 ```powershell
-.\scripts\setup-windows.ps1
-aws configure
-gh auth login
-
-cd terraform\bootstrap
-terraform init
-terraform apply -auto-approve
-
-cd ..\environments\dev
-# uzupełnij terraform.tfvars (admin_cidr, ssh_public_key)
-terraform init
-terraform apply -auto-approve
+cd C:\Users\artam\Documents\DevOps\devops-diploma-infra
+# w terraform\environments\dev\terraform.tfvars musi być jenkins_home_volume_id
+.\scripts\aws-resume.ps1
+cd terraform\environments\dev
 terraform output
 ```
 
-Ansible (WSL):
+**2. WSL — Ansible**
 
 ```bash
-cd ansible
-# inventory/hosts — IP z terraform output
+cd /mnt/c/Users/artam/Documents/DevOps/devops-diploma-infra/ansible
+# inventory/hosts = IP z terraform output
 ansible-playbook -i inventory/hosts playbooks/site.yml
 ansible-playbook -i inventory/hosts playbooks/monitoring.yml
 ```
 
-Szczegóły: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+**3. Sprawdź**
 
-## Struktura
+| Co | URL |
+|----|-----|
+| Gra | `http://<k3s-ip>:30080` |
+| Jenkins | `http://<jenkins-ip>:8080` |
+| Prometheus | `http://<k3s-ip>:30090/targets` |
+| Grafana | `http://<k3s-ip>:30300` (`admin` / `devops-diploma`) |
 
+## CI/CD (Jenkins)
+
+- `develop` — testy, Docker build/push, mail, auto-merge → `main`
+- `main` — to samo + deploy na k3s
+
+## Pauza (koszty ↓, Jenkins zachowany)
+
+```powershell
+.\scripts\aws-pause.ps1
 ```
-terraform/     # VPC, SG, 2× EC2, S3 state (bootstrap)
-ansible/       # Jenkins, k3s, ufw, Python 3.12, Node 22
-kubernetes/    # WebStrike + monitoring
-jenkins/       # przykładowe Jenkinsfile / Casc
-docs/          # ARCHITECTURE, DEPLOYMENT, DEMO
-scripts/       # helpery
-```
 
-## CI/CD
+## Monitoring
 
-Pipeline w repo aplikacji (`Counter-Strike/Jenkinsfile`):
-
-- dowolna gałąź: testy → build Docker → push Docker Hub → e-mail (SES)
-- `main`: dodatkowo deploy na k3s
-
-## Dostęp po wdrożeniu
-
-- Gra: `http://<k3s-ip>:30080`
-- Health: `http://<k3s-ip>:30080/healthz` oraz `/api/health`
-- Metrics (Prometheus): `http://<k3s-ip>:30080/metrics` (przez Caddy) lub backend `/metrics`
-- Jenkins: `http://<jenkins-ip>:8080`
-- Prometheus UI: `http://<k3s-ip>:30090` (targets → `webstrike-backend`)
-- Grafana: `http://<k3s-ip>:30300` (admin / devops-diploma, datasource Prometheus)
+Jeden plik: `kubernetes/monitoring/stack.yaml`  
+Tylko **Prometheus + Grafana** (stabilnie na t3.small).  
+Metryki gry: endpoint backend `/metrics` (`webstrike_players`, `webstrike_rooms`).
 
 ## Autor
 
