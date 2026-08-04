@@ -1,32 +1,10 @@
-# Alertmanager config — e-mail via AWS SES (opcjonalnie)
-# Zastosuj po wdrożeniu monitoring: kubectl apply -f alertmanager-config.yaml
-
-apiVersion: v1
-kind: Secret
-metadata:
-  name: alertmanager-devops-diploma
-  namespace: monitoring
-  labels:
-    app: kube-prometheus-stack-alertmanager
-type: Opaque
-stringData:
-  alertmanager.yaml: |
-    global:
-      resolve_timeout: 5m
-      smtp_smarthost: 'email-smtp.eu-central-1.amazonaws.com:587'
-      smtp_from: 'alerts@devops-diploma.local'
-      smtp_require_tls: true
-      # Uzupełnij credentials SES SMTP w Jenkins / Secret
-      # smtp_auth_username: 'AKIA...'
-      # smtp_auth_password: '...'
-    route:
-      group_by: ['alertname', 'namespace']
-      group_wait: 30s
-      group_interval: 5m
-      repeat_interval: 4h
-      receiver: 'email-default'
-    receivers:
-      - name: 'email-default'
-        email_configs:
-          - to: 'YOUR_EMAIL@example.com'
-            send_resolved: true
+# Legacy / dokumentacja.
+# Produkcyjna konfiguracja Alertmanagera powstaje w:
+#   scripts/install-monitoring-lite.sh
+# z pliku .secrets/ses-smtp.env (SMTP user/hasło SES).
+#
+# Alerty → a.artamonov@wp.pl
+# From: artamonovandrei88@gmail.com (zweryfikowana tożsamość SES)
+#
+# UI: http://<k3s-ip>:30903
+# Prometheus Alerts: http://<k3s-ip>:30090/alerts

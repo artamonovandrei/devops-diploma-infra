@@ -76,7 +76,9 @@ ansible-playbook -i inventory/hosts playbooks/monitoring.yml
 
 ## Monitoring
 
-Jeden plik: `kubernetes/monitoring/stack.yaml` — **Prometheus + Grafana**.
+`kubernetes/monitoring/stack.yaml` — **Prometheus + Grafana + Alertmanager**.  
+Alerty e-mail (SES) na `a.artamonov@wp.pl` — SMTP z `.secrets/ses-smtp.env` (nie w gicie).  
+UI Alertmanager: `:30903` | Prometheus Alerts: `:30090/alerts`
 
 ## Autor
 

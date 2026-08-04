@@ -1,41 +1,74 @@
 ---
-- name: Install Prometheus + Grafana (simple stack)
+- name: Install Prometheus + Grafana + Alertmanager (SES e-mail)
   hosts: k3s
   become: true
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
+  vars:
+    infra_root: /opt/devops-diploma-infra
+    local_ses_env: "{{ playbook_dir }}/../../.secrets/ses-smtp.env"
+
   tasks:
+    - name: Stat SES env on controller
+      stat:
+        path: "{{ local_ses_env }}"
+      delegate_to: localhost
+      become: false
+      register: ses_local
+
     - name: Ensure infra directories
       file:
         path: "{{ item }}"
         state: directory
         mode: "0755"
       loop:
-        - /opt/devops-diploma-infra/scripts
-        - /opt/devops-diploma-infra/kubernetes/monitoring
+        - "{{ infra_root }}/scripts"
+        - "{{ infra_root }}/kubernetes/monitoring"
+        - "{{ infra_root }}/.secrets"
 
     - name: Sync monitoring stack from controller
       copy:
         src: "{{ playbook_dir }}/../../kubernetes/monitoring/stack.yaml"
-        dest: /opt/devops-diploma-infra/kubernetes/monitoring/stack.yaml
+        dest: "{{ infra_root }}/kubernetes/monitoring/stack.yaml"
         mode: "0644"
 
-    - name: Sync install script (normalize CRLF from Windows mount)
+    - name: Sync install script
       copy:
         src: "{{ playbook_dir }}/../../scripts/install-monitoring-lite.sh"
-        dest: /opt/devops-diploma-infra/scripts/install-monitoring-lite.sh
+        dest: "{{ infra_root }}/scripts/install-monitoring-lite.sh"
         mode: "0755"
 
     - name: Strip Windows CRLF from install script
       replace:
-        path: /opt/devops-diploma-infra/scripts/install-monitoring-lite.sh
+        path: "{{ infra_root }}/scripts/install-monitoring-lite.sh"
         regexp: '\r\n?'
         replace: '\n'
 
-    - name: Apply Prometheus + Grafana
-      # bash explicite — unika Errno 2 przy shebang z CRLF / brak +x
-      shell: bash /opt/devops-diploma-infra/scripts/install-monitoring-lite.sh
+    - name: Sync SES SMTP env from controller
+      copy:
+        src: "{{ local_ses_env }}"
+        dest: "{{ infra_root }}/.secrets/ses-smtp.env"
+        mode: "0600"
+      when: ses_local.stat.exists | default(false)
+
+    - name: Fail if SES credentials missing
+      fail:
+        msg: "Brak {{ local_ses_env }} — potrzebny do alertów e-mail SES"
+      when: not (ses_local.stat.exists | default(false))
+
+    - name: Ensure SES_TO is a.artamonov@wp.pl
+      lineinfile:
+        path: "{{ infra_root }}/.secrets/ses-smtp.env"
+        regexp: '^SES_TO='
+        line: 'SES_TO=a.artamonov@wp.pl'
+
+    - name: Apply Prometheus + Grafana + Alertmanager
+      shell: |
+        set -euo pipefail
+        export SES_ENV_FILE={{ infra_root }}/.secrets/ses-smtp.env
+        export SES_TO=a.artamonov@wp.pl
+        bash {{ infra_root }}/scripts/install-monitoring-lite.sh
       args:
         executable: /bin/bash
       register: mon
