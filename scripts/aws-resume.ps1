@@ -1,70 +1,61 @@
-# Przywroc infrastrukture i podlacz ten sam dysk Jenkins (ustawienia wracaja).
+# Przywroc infrastrukture i podlacz TEN SAM dysk Jenkins (joby + credentials).
 # Uzycie:
 #   .\scripts\aws-resume.ps1
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $TfDir = Join-Path $RepoRoot "terraform\environments\dev"
-$SecretsDir = Join-Path $RepoRoot ".secrets"
-$VolumeFile = Join-Path $SecretsDir "jenkins-home-volume-id.txt"
-$Tfvars = Join-Path $TfDir "terraform.tfvars"
-$Inventory = Join-Path $RepoRoot "ansible\inventory\hosts"
+$SshKey = Join-Path $env:USERPROFILE ".ssh\devops-diploma"
 
-if (-not (Test-Path $VolumeFile)) {
-    throw "Brak $VolumeFile — uruchom najpierw aws-pause.ps1 albo wstaw vol-xxx recznie."
-}
-$volId = (Get-Content $VolumeFile -Raw).Trim()
-if ($volId -notmatch '^vol-') {
-    throw "Niepoprawne volume ID w $VolumeFile : $volId"
-}
+Set-Location $RepoRoot
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force | Out-Null
 
-if (-not (Test-Path $Tfvars)) {
-    throw "Brak $Tfvars"
-}
-
-# Upsert jenkins_home_volume_id w tfvars
-$tfvarsText = Get-Content $Tfvars -Raw
-if ($tfvarsText -match 'jenkins_home_volume_id\s*=') {
-    $tfvarsText = [regex]::Replace(
-        $tfvarsText,
-        'jenkins_home_volume_id\s*=\s*"[^"]*"',
-        "jenkins_home_volume_id = `"$volId`""
-    )
-} else {
-    $tfvarsText = $tfvarsText.TrimEnd() + "`r`n`r`njenkins_home_volume_id = `"$volId`"`r`n"
-}
-Set-Content -Path $Tfvars -Value $tfvarsText -NoNewline
-Write-Host "tfvars: jenkins_home_volume_id = $volId" -ForegroundColor Green
+. "$PSScriptRoot\ensure-jenkins-volume.ps1" -AsLibrary
+Ensure-JenkinsVolumeId | Out-Null
 
 Push-Location $TfDir
 try {
-    Write-Host "==> terraform apply..." -ForegroundColor Cyan
+    Write-Host "==> terraform apply (reuse Jenkins EBS)..." -ForegroundColor Cyan
     terraform apply -auto-approve
+    if ($LASTEXITCODE -ne 0) { throw "terraform apply failed (exit $LASTEXITCODE)" }
 
     $jenkinsIp = terraform output -raw jenkins_public_ip
     $k3sIp = terraform output -raw k3s_public_ip
-    $jenkinsPriv = terraform output -raw jenkins_private_ip
-    $k3sPriv = terraform output -raw k3s_private_ip
 
     Write-Host "Jenkins: http://${jenkinsIp}:8080" -ForegroundColor Green
     Write-Host "k3s:     $k3sIp" -ForegroundColor Green
-}
-finally {
+} finally {
     Pop-Location
 }
 
-# Odswiez inventory (prosty szablon)
-if (Test-Path $Inventory) {
-    Write-Host "==> Aktualizacja ansible inventory (sprawdz IP recznie jesli trzeba)..." -ForegroundColor Cyan
-}
+Persist-JenkinsVolumeFromTerraform | Out-Null
+
+Write-Host "==> sync inventory..." -ForegroundColor Cyan
+& "$PSScriptRoot\sync-inventory.ps1"
+
+$drive = $RepoRoot.Substring(0, 1).ToLowerInvariant()
+$wslAnsibleDir = "/mnt/$drive/" + (($RepoRoot.Substring(3) -replace '\\', '/') + "/ansible")
 
 Write-Host @"
 
-Dalej (WSL / Ansible):
-  cd ansible
-  # uzupelnij inventory/hosts nowymi IP
+Dalej (WSL):
+  cd $wslAnsibleDir
   ansible-playbook -i inventory/hosts playbooks/site.yml
+  ansible-playbook -i inventory/hosts playbooks/monitoring.yml
 
-Jenkins powinien wstac z poprzednimi jobami/credentials (ten sam EBS).
-Jesli setup wizard — volume byl pusty (pierwszy raz bez migracji).
+Potem (PowerShell) — kubeconfig na Jenkins (nowe private IP k3s):
+  .\scripts\wire-jenkins-kubeconfig.ps1
+
+Jenkins wstaje z poprzednimi jobami/credentials (ten sam EBS).
+Jesli setup wizard — volume byl pusty albo nie podlaczony (sprawdz .secrets).
 "@ -ForegroundColor Yellow
+
+# Best-effort kubeconfig (dziala dopiero gdy k3s juz skonfigurowany)
+if (Test-Path $SshKey) {
+    Write-Host "==> Proba wire kubeconfig (moze fail jesli Ansible jeszcze nie odpalony)..." -ForegroundColor Cyan
+    try {
+        & "$PSScriptRoot\wire-jenkins-kubeconfig.ps1" -SshKey $SshKey
+    } catch {
+        Write-Host "kubeconfig pominiety na razie: $_" -ForegroundColor DarkYellow
+    }
+}

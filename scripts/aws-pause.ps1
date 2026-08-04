@@ -22,6 +22,22 @@ try {
     Set-Content -Path $VolumeFile -Value $volId -NoNewline
     Write-Host "Zapisano volume ID: $volId -> $VolumeFile" -ForegroundColor Green
 
+    # Trzymaj tfvars w sync — kolejny apply nie stworzy pustego dysku
+    if (Test-Path $Tfvars) {
+        $tfvarsText = Get-Content $Tfvars -Raw
+        if ($tfvarsText -match 'jenkins_home_volume_id\s*=') {
+            $tfvarsText = [regex]::Replace(
+                $tfvarsText,
+                'jenkins_home_volume_id\s*=\s*"[^"]*"',
+                "jenkins_home_volume_id = `"$volId`""
+            )
+        } else {
+            $tfvarsText = $tfvarsText.TrimEnd() + "`r`n`r`njenkins_home_volume_id = `"$volId`"`r`n"
+        }
+        Set-Content -Path $Tfvars -Value $tfvarsText -NoNewline
+        Write-Host "tfvars: jenkins_home_volume_id = $volId" -ForegroundColor Green
+    }
+
     Write-Host "==> Usuwam volume z Terraform state (AWS dysk zostaje)..." -ForegroundColor Cyan
     # Ignoruj blad gdy zasobu juz nie ma w state (PowerShell + terraform stderr)
     $prevEap = $ErrorActionPreference

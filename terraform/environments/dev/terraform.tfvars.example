@@ -13,7 +13,9 @@ ssh_public_key = "ssh-rsa AAAA... your-key-here"
 jenkins_instance_type = "t3.small"
 k3s_instance_type     = "t3.small"
 
-# Po aws-pause.ps1 wklej vol-xxx, żeby Jenkins wrócił z jobami/credentials
-# jenkins_home_volume_id = "vol-xxxxxxxx"
+# WAŻNE: pusty string = NOWY pusty dysk (utrata Jenkins credentials).
+# Po pierwszym apply skrypty zapisują vol- do .secrets/jenkins-home-volume-id.txt
+# i tu. Start/resume ZAWSZE reuse tego ID.
+# Pierwszy bootstrap: start-from-zero.ps1 -AllowNewJenkinsVolume
 jenkins_home_volume_id = ""
 jenkins_home_volume_size_gb = 20

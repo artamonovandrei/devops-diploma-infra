@@ -11,28 +11,56 @@ CI/CD jest tylko w **Jenkins** (bez GitHub Actions).
 | [Counter-Strike](https://github.com/artamonovandrei/Counter-Strike) | Gra + `Jenkinsfile` |
 | to repo | Terraform, Ansible, K8s, monitoring |
 
-## Start (codziennie / po pauzie)
+## Jenkins nie traci ustawień
 
-**1. PowerShell — AWS**
+`/var/lib/jenkins` leży na **osobnym EBS**. ID dysku:
+
+- `.secrets/jenkins-home-volume-id.txt` (lokalnie, gitignore)
+- `terraform.tfvars` → `jenkins_home_volume_id`
+
+Skrypty **odmawiają** `terraform apply` bez tego ID (inaczej powstałby pusty dysk).  
+Pierwszy bootstrap w życiu: `-AllowNewJenkinsVolume` / `ALLOW_NEW_JENKINS_VOLUME=1`.
+
+## Start od zera (zachowaj credentials)
+
+**PowerShell** (zalecane na Windows):
 
 ```powershell
 cd C:\Users\artam\Documents\DevOps\devops-diploma-infra
-# w terraform\environments\dev\terraform.tfvars musi być jenkins_home_volume_id
-.\scripts\aws-resume.ps1
-cd terraform\environments\dev
-terraform output
+# reuse istniejącego vol (masz już w .secrets / tfvars):
+.\scripts\start-from-zero.ps1
+# ALBO pierwszy raz w życiu (pusty dysk):
+# .\scripts\start-from-zero.ps1 -AllowNewJenkinsVolume
 ```
 
-**2. WSL — Ansible**
+Skrypt: Terraform → zapis volume ID → inventory → (WSL) Ansible → kubeconfig na Jenkins → deploy app.
+
+**WSL / bash** (to samo):
 
 ```bash
-cd /mnt/c/Users/artam/Documents/DevOps/devops-diploma-infra/ansible
-# inventory/hosts = IP z terraform output
-ansible-playbook -i inventory/hosts playbooks/site.yml
-ansible-playbook -i inventory/hosts playbooks/monitoring.yml
+./scripts/deploy.sh
+# pierwszy raz: ALLOW_NEW_JENKINS_VOLUME=1 ./scripts/deploy.sh
 ```
 
-**3. Sprawdź**
+## Codziennie / po pauzie
+
+```powershell
+.\scripts\aws-resume.ps1          # attach TEN SAM EBS + sync inventory
+# WSL:
+cd ansible
+ansible-playbook -i inventory/hosts playbooks/site.yml
+ansible-playbook -i inventory/hosts playbooks/monitoring.yml
+# PowerShell — nowe private IP k3s:
+.\scripts\wire-jenkins-kubeconfig.ps1
+```
+
+## Pauza (koszty ↓, Jenkins zachowany)
+
+```powershell
+.\scripts\aws-pause.ps1
+```
+
+## Sprawdź
 
 | Co | URL |
 |----|-----|
@@ -46,17 +74,9 @@ ansible-playbook -i inventory/hosts playbooks/monitoring.yml
 - `develop` — testy, Docker build/push, mail, auto-merge → `main`
 - `main` — to samo + deploy na k3s
 
-## Pauza (koszty ↓, Jenkins zachowany)
-
-```powershell
-.\scripts\aws-pause.ps1
-```
-
 ## Monitoring
 
-Jeden plik: `kubernetes/monitoring/stack.yaml`  
-Tylko **Prometheus + Grafana** (stabilnie na t3.small).  
-Metryki gry: endpoint backend `/metrics` (`webstrike_players`, `webstrike_rooms`).
+Jeden plik: `kubernetes/monitoring/stack.yaml` — **Prometheus + Grafana**.
 
 ## Autor
 
