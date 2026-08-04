@@ -6,17 +6,14 @@
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
   tasks:
-    - name: Ensure infra checkout directory
+    - name: Ensure infra directories
       file:
-        path: /opt/devops-diploma-infra/scripts
+        path: "{{ item }}"
         state: directory
         mode: "0755"
-
-    - name: Ensure monitoring manifests directory
-      file:
-        path: /opt/devops-diploma-infra/kubernetes/monitoring
-        state: directory
-        mode: "0755"
+      loop:
+        - /opt/devops-diploma-infra/scripts
+        - /opt/devops-diploma-infra/kubernetes/monitoring
 
     - name: Sync monitoring stack from controller
       copy:
@@ -24,17 +21,26 @@
         dest: /opt/devops-diploma-infra/kubernetes/monitoring/stack.yaml
         mode: "0644"
 
-    - name: Sync install script
+    - name: Sync install script (normalize CRLF from Windows mount)
       copy:
         src: "{{ playbook_dir }}/../../scripts/install-monitoring-lite.sh"
         dest: /opt/devops-diploma-infra/scripts/install-monitoring-lite.sh
         mode: "0755"
 
+    - name: Strip Windows CRLF from install script
+      replace:
+        path: /opt/devops-diploma-infra/scripts/install-monitoring-lite.sh
+        regexp: '\r\n?'
+        replace: '\n'
+
     - name: Apply Prometheus + Grafana
-      command: /opt/devops-diploma-infra/scripts/install-monitoring-lite.sh
+      # bash explicite — unika Errno 2 przy shebang z CRLF / brak +x
+      shell: bash /opt/devops-diploma-infra/scripts/install-monitoring-lite.sh
+      args:
+        executable: /bin/bash
       register: mon
       changed_when: "'MONITORING_OK' in mon.stdout"
 
-    - name: Show URLs
+    - name: Show install output
       debug:
-        msg: "{{ mon.stdout_lines | select('search', 'http') | list }}"
+        msg: "{{ mon.stdout_lines }}"
