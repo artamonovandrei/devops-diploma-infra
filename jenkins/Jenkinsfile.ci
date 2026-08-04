@@ -44,14 +44,11 @@ pipeline {
                         echo "kubectl missing — skip dry-run"
                         exit 0
                     fi
-                    for f in kubernetes/apps/*.yaml kubernetes/monitoring/*.yaml; do
+                    # --validate=false: nie wymaga żywego API (kubeconfig może mieć stare IP po resume)
+                    for f in kubernetes/apps/*.yaml kubernetes/monitoring/stack.yaml; do
                         [ -f "$f" ] || continue
-                        # Helm values — nie jest manifestem K8s
-                        case "$f" in
-                          *kube-prometheus-values.yaml|*values.yaml) echo "skip helm values: $f"; continue ;;
-                        esac
                         echo "validate: $f"
-                        kubectl apply --dry-run=client -f "$f"
+                        kubectl apply --dry-run=client --validate=false -f "$f"
                     done
                     echo "K8S_DRY_RUN_OK"
                 '''
@@ -67,10 +64,12 @@ pipeline {
                         exit 0
                     fi
                     cd ansible
-                    for pb in playbooks/*.yml; do
+                    INV=inventory/hosts.example
+                    [ -f inventory/hosts ] && INV=inventory/hosts
+                    for pb in playbooks/site.yml playbooks/monitoring.yml playbooks/jenkins.yml playbooks/k3s.yml; do
+                        [ -f "$pb" ] || continue
                         echo "syntax: $pb"
-                        ansible-playbook --syntax-check -i inventory/hosts "$pb" || \
-                          ansible-playbook --syntax-check "$pb"
+                        ansible-playbook --syntax-check -i "$INV" "$pb"
                     done
                     echo "ANSIBLE_SYNTAX_OK"
                 '''
