@@ -1,30 +1,53 @@
-# DevOps Diploma — infrastruktura
+# DevOps Diploma — infrastruktura (prosty przewodnik)
 
-Infra pod grę [Counter-Strike](https://github.com/artamonovandrei/Counter-Strike): Terraform → Ansible → Jenkins → k3s → Prometheus/Grafana/Alertmanager.
+Ten katalog to **infra** pod grę WebStrike.  
+Gra (kod) jest w osobnym repo: [Counter-Strike](https://github.com/artamonovandrei/Counter-Strike).
 
-CI/CD tylko w **Jenkins** (bez GitHub Actions).
+## Co tu jest (w jednym zdaniu)
 
-| Repo | Rola |
-|------|------|
-| [Counter-Strike](https://github.com/artamonovandrei/Counter-Strike) | Gra + `Jenkinsfile` |
-| to repo | Terraform, Ansible, K8s, monitoring, `jenkins/Jenkinsfile.ci` |
+```text
+Terraform (AWS) → Ansible (instalacja) → Jenkins (CI/CD) → k3s (gra) → Prometheus/Grafana (monitoring)
+```
 
-Szczegóły: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/JENKINS.md](docs/JENKINS.md).
+| Repo | Po co |
+|------|--------|
+| [Counter-Strike](https://github.com/artamonovandrei/Counter-Strike) | Kod gry + `Jenkinsfile` |
+| **to repo** (`devops-diploma-infra`) | Terraform, Ansible, Kubernetes, monitoring |
 
-## Jenkins i dysk EBS
+CI/CD jest **tylko w Jenkins** (bez GitHub Actions).
 
-`/var/lib/jenkins` jest na osobnym EBS — pauza nie kasuje jobów ani credentials.
+Więcej „krok po kroku”: **[docs/PODPOWIEDZI.md](docs/PODPOWIEDZI.md)** ← zacznij stąd, jeśli jesteś juniorem.
 
-ID dysku (musi być ustawione przed `apply`):
+---
 
-- `.secrets/jenkins-home-volume-id.txt` (lokalnie, gitignore)
-- `terraform/environments/dev/terraform.tfvars` → `jenkins_home_volume_id`
+## Dwa programy na komputerze
 
-Skrypty odmawiają `terraform apply` bez tego ID. Flaga `-AllowNewJenkinsVolume` / `ALLOW_NEW_JENKINS_VOLUME=1` — **tylko pierwszy bootstrap w życiu**.
+| Gdzie | Do czego |
+|-------|----------|
+| **PowerShell** | Terraform, AWS, skrypty `pause` / `resume`, kubeconfig |
+| **WSL** | Ansible (`ansible-playbook`) |
 
-## Codziennie: pauza / wznowienie
+Zawsze wchodź najpierw do katalogu infra:
 
-**Pauza** (EC2 znika, dysk Jenkins zostaje):
+```powershell
+cd C:\Users\artam\Documents\DevOps\devops-diploma-infra
+```
+
+---
+
+## Najważniejsze: Jenkins nie ginie przy pauzie
+
+Jenkins trzyma joby i hasła na **osobnym dysku AWS (EBS)**:
+
+- plik: `.secrets/jenkins-home-volume-id.txt`
+- oraz: `terraform/environments/dev/terraform.tfvars` → `jenkins_home_volume_id`
+
+**Pauza** = wyłączasz serwery (nie płacisz za EC2), dysk zostaje.  
+**Resume** = włączasz serwery + ten sam dysk → Jenkins wraca z ustawieniami.
+
+---
+
+## 1) Zatrzymaj wszystko (bez utraty Jenkinsa)
 
 ```powershell
 cd C:\Users\artam\Documents\DevOps\devops-diploma-infra
@@ -32,14 +55,16 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\scripts\aws-pause.ps1
 ```
 
-**Wznowienie:**
+Po sukcesie zobaczysz: `PAUSE OK` i ID dysku `vol-...`.
+
+## 2) Uruchom z powrotem
 
 ```powershell
 cd C:\Users\artam\Documents\DevOps\devops-diploma-infra
 .\scripts\aws-resume.ps1
 ```
 
-Potem w **WSL** (Ansible):
+Potem **WSL**:
 
 ```bash
 cd /mnt/c/Users/artam/Documents/DevOps/devops-diploma-infra/ansible
@@ -47,74 +72,87 @@ ansible-playbook -i inventory/hosts playbooks/site.yml
 ansible-playbook -i inventory/hosts playbooks/monitoring.yml
 ```
 
-Z powrotem w **PowerShell** (nowe private IP k3s → kubeconfig na Jenkins):
+Potem znowu **PowerShell**:
 
 ```powershell
 cd C:\Users\artam\Documents\DevOps\devops-diploma-infra
 .\scripts\wire-jenkins-kubeconfig.ps1
 ```
 
-`aws-resume.ps1` sam woła `sync-inventory.ps1` (IP → `ansible/inventory/hosts`).
+Jeśli gra nie działa — w Jenkinsie Rebuild gałęzi `main` (job `webstrike`) albo patrz [PODPOWIEDZI](docs/PODPOWIEDZI.md).
 
-## Start od zera
-
-Gdy masz już `vol-…` w `.secrets` / tfvars:
-
-```powershell
-cd C:\Users\artam\Documents\DevOps\devops-diploma-infra
-Set-ExecutionPolicy -Scope Process Bypass
-.\scripts\start-from-zero.ps1
-```
-
-**Tylko pierwszy raz w życiu** (świadomie nowy pusty dysk):
-
-```powershell
-.\scripts\start-from-zero.ps1 -AllowNewJenkinsVolume
-```
-
-## Sprawdź (bez sztywnych IP)
+## 3) Adresy stron (zawsze świeże IP)
 
 ```powershell
 cd C:\Users\artam\Documents\DevOps\devops-diploma-infra\terraform\environments\dev
 terraform output
-# albo konkretnie:
-terraform output -raw jenkins_url
-terraform output -raw app_url
-terraform output -raw prometheus_url
-terraform output -raw grafana_url
 ```
 
-| Co | Port / dostęp |
-|----|----------------|
-| Gra | `:30080` (k3s) |
+| Co | Port |
+|----|------|
+| Gra | `:30080` |
 | Jenkins | `:8080` |
-| Prometheus | `:30090` (`/targets`, `/alerts`) |
-| Grafana | `:30300` — `admin` / `devops-diploma` |
+| Prometheus | `:30090` |
+| Grafana | `:30300` — login `admin` / hasło `devops-diploma` |
 | Alertmanager | `:30903` |
 
-## CI/CD
+---
 
-| Repo | Gałąź | Co robi |
-|------|-------|---------|
-| Counter-Strike | `develop` | testy, Docker build/push, mail, auto-merge → `main` |
-| Counter-Strike | `main` | to samo + deploy na k3s |
-| to repo | `jenkins/Jenkinsfile.ci` | walidacja infra (layout + kubectl dry-run) |
+## Jak wypchnąć zmianę w grze (CI/CD)
 
-## Monitoring
+Praca na gałęzi **develop** w repo gry:
 
-Lite stack: `kubernetes/monitoring/stack.yaml` — Prometheus + Grafana + Alertmanager (bez Loki jako głównej ścieżki).
+```powershell
+cd C:\Users\artam\Documents\DevOps\Counter-Strike
+git checkout develop
+git pull origin develop
+```
 
-- Grafana: `admin` / `devops-diploma`
-- Alerty e-mail (SES) → `a.artamonov@wp.pl` (SMTP w `.secrets/ses-smtp.env`, nie w gicie)
+Edytujesz pliki (`frontend/`, `backend/`, …), potem:
 
-## Czego NIE robić
+```powershell
+git status
+git add .
+git -c user.name="artamonovandrei" -c user.email="artamonovandrei88@gmail.com" commit -m "Opis zmian w grze"
+git push origin develop
+```
 
-| Nie | Dlaczego |
-|-----|----------|
-| `terraform apply` z pustym `jenkins_home_volume_id` | powstanie nowy pusty dysk → strata Jenkinsa |
-| Goły `terraform destroy` zamiast `aws-pause.ps1` | ryzyko utraty EBS / jobów |
-| Usuwać dysk EBS Jenkins w AWS | trwała utrata credentials i jobów |
-| Commitować `.secrets/`, `terraform.tfvars` | sekrety i lokalne ID |
+Co się dzieje dalej (Jenkins):
+
+1. `develop` — testy, budowa obrazów Docker, push na Docker Hub, mail  
+2. automatyczny merge → `main`  
+3. `main` — to samo + **wdrożenie gry na k3s**
+
+---
+
+## Monitoring (krótko)
+
+- Prometheus zbiera metryki gry (`/metrics`)
+- Grafana pokazuje wykresy
+- Alertmanager wysyła alerty e-mail (SES) na `a.artamonov@wp.pl`
+
+Hasła SMTP są w `.secrets/ses-smtp.env` — **nie commituj** tego pliku.
+
+---
+
+## Czego NIGDY nie rób
+
+| Nie rób | Dlaczego |
+|---------|----------|
+| `terraform apply` z pustym `jenkins_home_volume_id` | Nowy pusty dysk = strata Jenkinsa |
+| Zwykły `terraform destroy` zamiast `aws-pause.ps1` | Możesz stracić dysk / joby |
+| Usuwać volume `vol-...` w konsoli AWS | Trwała utrata credentials |
+| Commitować `.secrets/` lub `terraform.tfvars` | Sekrety w gicie |
+
+---
+
+## Dokumenty
+
+| Plik | Treść |
+|------|--------|
+| [docs/PODPOWIEDZI.md](docs/PODPOWIEDZI.md) | Krok po kroku dla juniora |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Wdrożenie |
+| [docs/JENKINS.md](docs/JENKINS.md) | Jenkins, credentials |
 
 ## Autor
 
