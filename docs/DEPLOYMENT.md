@@ -1,75 +1,69 @@
-# Deployment — jedna ścieżka (Jenkins EBS safe)
+# Deployment — jedna ścieżka
 
 ## Zasada
 
-Nigdy nie odpalaj gołego `terraform apply` z pustym `jenkins_home_volume_id` — powstanie **nowy pusty dysk** i Jenkins straci credentials/joby.
+Nigdy nie odpalaj `terraform apply` z pustym `jenkins_home_volume_id` — powstanie nowy pusty dysk i Jenkins straci credentials.
 
-Źródło prawdy o dysku:
-
+ID dysku:
 1. `.secrets/jenkins-home-volume-id.txt`
 2. `terraform/environments/dev/terraform.tfvars` → `jenkins_home_volume_id`
 
 ## Narzędzia
 
-- Windows: AWS CLI, Terraform, klucz `~/.ssh/devops-diploma`
+- Windows (PowerShell): AWS CLI, Terraform, skrypty
 - WSL: Ansible
-- CI/CD: **tylko Jenkins**
+- CI/CD: tylko Jenkins
 
-## A) Start od zera (zachowaj ustawienia)
+## Codziennie: pauza / wznowienie
 
-Masz już `vol-…` (po wcześniejszej pracy / pause):
+**Pauza** (EC2 znika, dysk Jenkins zostaje):
 
 ```powershell
 cd C:\Users\artam\Documents\DevOps\devops-diploma-infra
-.\scripts\start-from-zero.ps1
+.\scripts\aws-pause.ps1
 ```
 
-Pierwszy bootstrap w życiu (świadomie nowy dysk):
+**Wznowienie:**
 
 ```powershell
-.\scripts\start-from-zero.ps1 -AllowNewJenkinsVolume
+cd C:\Users\artam\Documents\DevOps\devops-diploma-infra
+.\scripts\aws-resume.ps1
 ```
 
-Albo w WSL:
+Potem WSL:
 
 ```bash
-./scripts/deploy.sh
-# pierwszy raz: ALLOW_NEW_JENKINS_VOLUME=1 ./scripts/deploy.sh
+cd /mnt/c/Users/artam/Documents/DevOps/devops-diploma-infra/ansible
+ansible-playbook -i inventory/hosts playbooks/site.yml
+ansible-playbook -i inventory/hosts playbooks/monitoring.yml
 ```
 
-Co robi automatycznie:
-
-1. Wymusza reuse EBS (albo tworzy nowy tylko z flagą)
-2. Terraform bootstrap + apply + zapis `vol-` do `.secrets`
-3. `ansible/inventory/hosts` z aktualnych IP
-4. Ansible `site.yml` (montuje EBS → `/var/lib/jenkins`)
-5. Kubeconfig na Jenkins (prywatne IP k3s)
-6. Deploy app + monitoring
-
-**Jenkins UI (tylko gdy dysk był pusty):** credentials + Multibranch — patrz `docs/JENKINS.md`.  
-Gdy EBS miał już dane — joby wracają bez setup wizard.
-
-## B) Po pauzie (codziennie)
+Potem PowerShell:
 
 ```powershell
-.\scripts\aws-pause.ps1    # destroy EC2, dysk zostaje, ID w .secrets
-.\scripts\aws-resume.ps1   # apply + ten sam EBS + sync inventory
+.\scripts\wire-jenkins-kubeconfig.ps1
 ```
 
-Potem WSL Ansible + `.\scripts\wire-jenkins-kubeconfig.ps1`.
+Jeśli gra nie działa: Jenkins → job `webstrike` → gałąź `main` → Rebuild.
 
-## C) Ręczne pomoce
+## Skrypty (tylko te)
 
-| Skrypt | Rola |
-|--------|------|
-| `ensure-jenkins-volume.ps1` | Guard / sync `vol-` ↔ tfvars |
-| `sync-inventory.ps1` | IP → `ansible/inventory/hosts` |
-| `wire-jenkins-kubeconfig.ps1` | kubeconfig → Jenkins |
+| Skrypt | Po co |
+|--------|--------|
+| `aws-pause.ps1` | Zatrzymaj AWS, zachowaj Jenkins |
+| `aws-resume.ps1` | Wznów AWS + ten sam dysk Jenkins |
+| `wire-jenkins-kubeconfig.ps1` | Podłącz Jenkins do k3s |
+| `ensure-jenkins-volume.ps1` | Guard — używany przez resume |
+| `sync-inventory.ps1` | IP → Ansible inventory (używany przez resume) |
+| `install-monitoring-lite.sh` | Prometheus/Grafana/Alertmanager (Ansible) |
 
 ## Sprawdzenie
 
-```text
-http://<k3s-ip>:30080/api/health
-http://<k3s-ip>:30090/targets     → webstrike-backend UP
-http://<jenkins-ip>:8080          → te same joby co przed pauzą
+```powershell
+cd terraform\environments\dev
+terraform output
 ```
+
+## Credentials Jenkins (raz, na EBS)
+
+Patrz `docs/JENKINS.md`: `github-token`, `dockerhub-credentials`, `ses-smtp`.

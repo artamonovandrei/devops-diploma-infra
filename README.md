@@ -127,11 +127,21 @@ Co się dzieje dalej (Jenkins):
 
 ## Monitoring (krótko)
 
+Jeden plik: `kubernetes/monitoring/stack.yaml` (+ skrypt SES przy Ansible).
+
 - Prometheus zbiera metryki gry (`/metrics`)
-- Grafana pokazuje wykresy
+- Grafana pokazuje wykresy (`admin` / `devops-diploma`)
 - Alertmanager wysyła alerty e-mail (SES) na `a.artamonov@wp.pl`
 
-Hasła SMTP są w `.secrets/ses-smtp.env` — **nie commituj** tego pliku.
+SMTP: `.secrets/ses-smtp.env` — **nie commituj**.
+
+## Skrypty (zapamiętaj 3)
+
+| Skrypt | Po co |
+|--------|--------|
+| `aws-pause.ps1` | Stop AWS, Jenkins zostaje na EBS |
+| `aws-resume.ps1` | Start AWS + ten sam Jenkins |
+| `wire-jenkins-kubeconfig.ps1` | Jenkins → k3s po zmianie IP |
 
 ---
 
